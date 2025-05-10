@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rate My Fit</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Rate My Fit</h1>
+    <p>Upload your outfit and let the world decide if it’s 🔥 or 🚫.</p>
+    <form action="/upload" method="POST" enctype="multipart/form-data">
+      <label for="fitImage">Upload your fit:</label>
+      <input type="file" id="fitImage" name="fitImage" accept="image/*" required>
+      <button type="submit">Upload</button>
+    </form>
+    <% if (msg) { %>
+      <p class="message"><%= msg %></p>
+    <% } %>
+    <% if (file) { %>
+      <img src="<%= file %>" alt="Uploaded Fit">
+    <% } %>
+  </div>
+</body>
+</html>

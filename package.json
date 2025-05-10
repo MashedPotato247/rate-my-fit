@@ -1,0 +1,20 @@
+{
+  "name": "rate-my-fit",
+  "version": "1.0.0",
+  "description": "Rate My Fit - Upload and rate outfits",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "ejs": "^3.1.9",
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  },
+  "author": "MashedPotato247",
+  "license": "MIT"
+}
