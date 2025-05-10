@@ -5,22 +5,64 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Rate My Fit</title>
   <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
+  <!-- Navigation Bar -->
+  <div class="navbar">
+    <a href="/" class="logo">🔥 RateMyFit</a>
+    <div class="nav-links">
+      <a href="/" class="active">Home</a>
+      <a href="/trending">Trending</a>
+      <a href="/dashboard">Dashboard</a>
+    </div>
+  </div>
+
   <div class="container">
     <h1>Rate My Fit</h1>
-    <p>Upload your outfit and let the world decide if it’s 🔥 or 🚫.</p>
-    <form action="/upload" method="POST" enctype="multipart/form-data">
-      <label for="fitImage">Upload your fit:</label>
-      <input type="file" id="fitImage" name="fitImage" accept="image/*" required>
-      <button type="submit">Upload</button>
-    </form>
-    <% if (msg) { %>
-      <p class="message"><%= msg %></p>
-    <% } %>
-    <% if (file) { %>
-      <img src="<%= file %>" alt="Uploaded Fit">
-    <% } %>
+    <p class="subtitle">Upload your outfit and let the world decide if it's 🔥 or 🚫</p>
+    
+    <div class="upload-section">
+      <form action="/upload" method="POST" enctype="multipart/form-data">
+        <div class="file-input-container">
+          <label for="fitImage" class="file-input-label">
+            <i class="fas fa-cloud-upload-alt"></i>
+            <span>Drag your image here or click to browse</span>
+          </label>
+          <input type="file" id="fitImage" name="fitImage" accept="image/*" required>
+        </div>
+        <button type="submit" class="submit-btn">
+          <i class="fas fa-upload"></i> Upload Your Fit
+        </button>
+      </form>
+      
+      <% if (msg) { %>
+        <p class="message <%= msg.includes('success') ? 'success' : 'error' %>">
+          <%= msg %>
+        </p>
+      <% } %>
+      
+      <% if (file) { %>
+        <div>
+          <h3>Preview:</h3>
+          <img src="<%= file %>" alt="Uploaded Fit" class="preview-img">
+        </div>
+      <% } %>
+    </div>
   </div>
+
+  <footer>
+    Made with ❤️ by Anush. Let's make it to America! 🇺🇸
+  </footer>
+
+  <script>
+    // Preview image when selected
+    document.getElementById('fitImage').addEventListener('change', function(e) {
+      const fileLabel = document.querySelector('.file-input-label span');
+      if (this.files && this.files[0]) {
+        fileLabel.textContent = this.files[0].name;
+      }
+    });
+  </script>
 </body>
 </html>

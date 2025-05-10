@@ -5,14 +5,62 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Trending Fits</title>
   <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-  <div class="container">
-    <h1>🔥 Trending Fits 🔥</h1>
-    <p>Check out the top-rated fits of the moment!</p>
-    <div class="gallery">
-      <p>No trending fits yet. Be the first to upload!</p>
+  <!-- Navigation Bar -->
+  <div class="navbar">
+    <a href="/" class="logo">🔥 RateMyFit</a>
+    <div class="nav-links">
+      <a href="/">Home</a>
+      <a href="/trending" class="active">Trending</a>
+      <a href="/dashboard">Dashboard</a>
     </div>
   </div>
+
+  <div class="container">
+    <h1>🔥 Trending Fits 🔥</h1>
+    <p class="subtitle">Check out the top-rated fits of the moment!</p>
+    
+    <div class="gallery">
+      <% if (outfits && outfits.length > 0) { %>
+        <% outfits.forEach(outfit => { %>
+          <div class="outfit">
+            <div class="outfit-image-container">
+              <img src="<%= outfit.imageUrl %>" alt="Outfit">
+            </div>
+            <div class="outfit-stats">
+              <span class="vote-count fire-votes">
+                <i class="fas fa-fire"></i> <%= outfit.fireVotes || 0 %>
+              </span>
+              <span class="vote-count nope-votes">
+                <i class="fas fa-ban"></i> <%= outfit.nopeVotes || 0 %>
+              </span>
+            </div>
+            <form action="/vote" method="POST" class="vote-buttons">
+              <input type="hidden" name="outfitId" value="<%= outfit.id %>">
+              <input type="hidden" name="userId" value="<%= userId %>">
+              <button type="submit" name="voteType" value="fire" class="fire-btn">
+                <i class="fas fa-fire"></i> Fire
+              </button>
+              <button type="submit" name="voteType" value="nope" class="nope-btn">
+                <i class="fas fa-ban"></i> Nope
+              </button>
+            </form>
+          </div>
+        <% }) %>
+      <% } else { %>
+        <div class="no-fits">
+          <i class="fas fa-tshirt fa-3x"></i>
+          <p>No trending fits yet. Be the first to upload!</p>
+          <a href="/" class="submit-btn">Upload Your Fit</a>
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+  <footer>
+    Made with ❤️ by Anush. Let's make it to America! 🇺🇸
+  </footer>
 </body>
 </html>
