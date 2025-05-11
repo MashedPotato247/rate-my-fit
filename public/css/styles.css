@@ -277,6 +277,7 @@ input[type="file"] {
   position: relative;
   overflow: hidden;
   z-index: 1;
+  text-decoration: none;
 }
 
 .submit-btn:before {
@@ -295,10 +296,6 @@ input[type="file"] {
   background: var(--accent-hover);
   transform: translateY(-3px);
   box-shadow: 0 8px 20px rgba(255, 77, 77, 0.4);
-}
-
-.submit-btn:hover:before {
-  left: 100%;
 }
 
 .submit-btn:active {

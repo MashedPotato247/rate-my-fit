@@ -8,38 +8,22 @@ const fs = require('fs'); // File system module
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const GitHubStrategy = require('passport-github2').Strategy;
+const firebaseAdmin = require('firebase-admin'); // Firebase Admin SDK
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Initialize Firebase Admin SDK
+firebaseAdmin.initializeApp({
+  credential: firebaseAdmin.credential.applicationDefault(),
+  databaseURL: process.env.FIREBASE_DATABASE_URL
+});
 
 // Create data directory if it doesn't exist
 const dataDir = path.join(__dirname, 'data');
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir);
 }
-
-// Simple JSON database for users
-const userDbPath = path.join(dataDir, 'users.json');
-if (!fs.existsSync(userDbPath)) {
-  fs.writeFileSync(userDbPath, JSON.stringify({ users: [] }));
-}
-
-// Load users database
-let db = { users: [] };
-try {
-  db = JSON.parse(fs.readFileSync(userDbPath, 'utf8'));
-} catch (err) {
-  console.error('Error loading users database:', err);
-}
-
-// Save user database function
-const saveDb = () => {
-  try {
-    fs.writeFileSync(userDbPath, JSON.stringify(db, null, 2));
-  } catch (err) {
-    console.error('Error saving users database:', err);
-  }
-};
 
 // Initialize session middleware
 app.use(session({
@@ -55,12 +39,31 @@ app.use(passport.session());
 
 // Passport serialize/deserialize
 passport.serializeUser((user, done) => {
-  done(null, user.id);
+  // Serialize the user's unique identifier (e.g., googleId or email)
+  done(null, user.googleId || user.email);
 });
 
-passport.deserializeUser((id, done) => {
-  const user = db.users.find(u => u.id === id);
-  done(null, user);
+passport.deserializeUser(async (identifier, done) => {
+  try {
+    const userRef = firebaseAdmin.firestore().collection('users');
+    let userSnapshot;
+
+    // Try to find the user by googleId first
+    userSnapshot = await userRef.where('googleId', '==', identifier).get();
+
+    if (userSnapshot.empty) {
+      // If not found, try to find the user by email
+      userSnapshot = await userRef.where('email', '==', identifier).get();
+    }
+
+    if (!userSnapshot.empty) {
+      done(null, userSnapshot.docs[0].data());
+    } else {
+      done(new Error('User not found'), null);
+    }
+  } catch (err) {
+    done(err, null);
+  }
 });
 
 // Configure Google Strategy
@@ -71,38 +74,47 @@ passport.use(new GoogleStrategy({
   },
   async (accessToken, refreshToken, profile, done) => {
     try {
-      // Check if user already exists
-      let user = db.users.find(u => 
-        u.googleId === profile.id || 
-        (u.email === profile.emails[0].value)
-      );
-      
-      if (user) {
-        // Update existing user
-        if (!user.googleId) {
-          // Link accounts
-          user.googleId = profile.id;
-          saveDb();
-        }
+      // Use Firebase to find or create user
+      const userRef = firebaseAdmin.firestore().collection('users');
+      let userSnapshot = await userRef.where('googleId', '==', profile.id).get();
+
+      let user;
+      if (!userSnapshot.empty) {
+        // User exists
+        user = userSnapshot.docs[0].data();
       } else {
-        // Create new user
-        user = {
-          id: Date.now().toString(),
-          googleId: profile.id,
-          username: `user_${Date.now()}`,
-          email: profile.emails[0].value,
-          displayName: profile.displayName,
-          photoURL: profile.photos[0].value,
-          createdAt: new Date().toISOString(),
-          isNewUser: true
-        };
-        
-        db.users.push(user);
-        saveDb();
+        // Check by email
+        userSnapshot = await userRef.where('email', '==', profile.emails[0].value).get();
+        if (!userSnapshot.empty) {
+          // Link Google account to existing user
+          user = userSnapshot.docs[0].data();
+          await userRef.doc(userSnapshot.docs[0].id).update({
+            googleId: profile.id
+          });
+        } else {
+          // Create new user
+          // Generate username based on email (removing special chars)
+          const baseUsername = profile.emails[0].value.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
+          const username = baseUsername + Math.floor(1000 + Math.random() * 9000);
+          
+          user = {
+            googleId: profile.id,
+            email: profile.emails[0].value,
+            name: profile.displayName,
+            displayName: profile.displayName,
+            username: username,
+            avatar: profile.photos[0]?.value || null,
+            photoURL: profile.photos[0]?.value || null, 
+            createdAt: Date.now(),
+            isNewUser: true
+          };
+          await userRef.add(user);
+        }
       }
-      
+
       return done(null, user);
     } catch (err) {
+      console.error('Error in Google Strategy:', err);
       return done(err);
     }
   }
@@ -118,26 +130,33 @@ passport.use(new GitHubStrategy({
       // Fallback for email if profile.emails is undefined or empty
       const email = (profile.emails && profile.emails.length > 0) ? profile.emails[0].value : null;
 
-      let user = db.users.find(u => u.githubId === profile.id || u.email === email);
-      if (user) {
-        if (!user.githubId) {
-          user.githubId = profile.id;
-          saveDb();
-        }
+      const userRef = firebaseAdmin.firestore().collection('users');
+      let userSnapshot = await userRef.where('githubId', '==', profile.id).get();
+
+      let user;
+      if (!userSnapshot.empty) {
+        user = userSnapshot.docs[0].data();
       } else {
-        user = {
-          id: Date.now().toString(),
-          githubId: profile.id,
-          username: profile.username || `user_${Date.now()}`,
-          email: email, // Use fallback email
-          displayName: profile.displayName || profile.username,
-          photoURL: profile.photos && profile.photos[0] ? profile.photos[0].value : null,
-          createdAt: new Date().toISOString(),
-          isNewUser: true
-        };
-        db.users.push(user);
-        saveDb();
+        userSnapshot = await userRef.where('email', '==', email).get();
+        if (!userSnapshot.empty) {
+          user = userSnapshot.docs[0].data();
+          await userRef.doc(userSnapshot.docs[0].id).update({
+            githubId: profile.id
+          });
+        } else {
+          user = {
+            githubId: profile.id,
+            username: profile.username || `user_${Date.now()}`,
+            email: email, // Use fallback email
+            displayName: profile.displayName || profile.username,
+            photoURL: profile.photos && profile.photos[0] ? profile.photos[0].value : null,
+            createdAt: new Date().toISOString(),
+            isNewUser: true
+          };
+          await userRef.add(user);
+        }
       }
+
       return done(null, user);
     } catch (err) {
       return done(err);
@@ -232,38 +251,113 @@ app.get('/dashboard', checkAuth, (req, res) => {
 });
 
 // Profile Route
-app.get('/profile', checkAuth, (req, res) => {
-  const user = req.session.user;
-  res.render('profile', { user });
+app.get('/profile', checkAuth, async (req, res) => {
+  const sessionUser = req.session.user || req.user;
+  
+  try {
+    // Fetch latest user data from Firestore
+    const userCollection = firebaseAdmin.firestore().collection('users');
+    const userQuery = await userCollection.where('email', '==', sessionUser.email).get();
+    
+    if (userQuery.empty) {
+      return res.render('profile', { 
+        user: sessionUser,
+        error: 'User not found in database'
+      });
+    }
+    
+    // Get the user document
+    const userDoc = userQuery.docs[0];
+    const userData = userDoc.data();
+    
+    // Combine the user data with document ID
+    const user = { 
+      id: userDoc.id, 
+      ...userData,
+      // Ensure backwards compatibility with different field names
+      photoURL: userData.photoURL || userData.avatar,
+      displayName: userData.displayName || userData.name,
+      username: userData.username || userData.email.split('@')[0],
+    };
+    
+    res.render('profile', { user });
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+    res.render('profile', { 
+      user: sessionUser,
+      error: 'Could not load profile data. Please try again.'
+    });
+  }
 });
 
 app.post('/profile', checkAuth, async (req, res) => {
-  const { displayName, bio } = req.body;
+  const { displayName, bio, username } = req.body;
+  const user = req.session.user || req.user;
   
   try {
-    // Find user in database
-    const userIndex = db.users.findIndex(u => u.id === req.session.user.id);
-    
-    if (userIndex === -1) {
+    // Make sure we have a valid user ID
+    if (!user || !user.email) {
       return res.render('profile', { 
-        user: req.session.user,
+        user: user,
+        error: 'Invalid user session. Please log in again.'
+      });
+    }
+    
+    // First, find user by email
+    const userCollection = firebaseAdmin.firestore().collection('users');
+    const userQuery = await userCollection.where('email', '==', user.email).get();
+    
+    if (userQuery.empty) {
+      return res.render('profile', { 
+        user: user,
         error: 'User not found'
       });
     }
     
-    // Update user data
-    db.users[userIndex].displayName = displayName;
-    db.users[userIndex].bio = bio;
+    // Get the first document (should be only one with this email)
+    const userDoc = userQuery.docs[0];
+    const userId = userDoc.id;
     
-    // Save to database
-    saveDb();
+    // Make sure we have a valid document ID
+    if (!userId) {
+      return res.render('profile', {
+        user: user,
+        error: 'Invalid user document. Please try logging in again.'
+      });
+    }
+    
+    const userRef = userCollection.doc(userId);
+    
+    // Check if username is taken by another user
+    if (username && username !== user.username) {
+      const usernameQuery = await userCollection.where('username', '==', username).get();
+      if (!usernameQuery.empty && usernameQuery.docs[0].id !== userId) {
+        return res.render('profile', {
+          user: user,
+          error: 'Username already taken'
+        });
+      }
+    }
+    
+    // Update user data
+    const updateData = { displayName, bio };
+    if (username) updateData.username = username;
+    
+    await userRef.update(updateData);
     
     // Update session
-    req.session.user.displayName = displayName;
-    req.session.user.bio = bio;
+    if (req.session.user) {
+      req.session.user.displayName = displayName;
+      req.session.user.bio = bio;
+      if (username) req.session.user.username = username;
+    }
+    
+    // Get updated user data to render the page
+    const updatedUserDoc = await userRef.get();
+    const updatedUser = { id: userId, ...updatedUserDoc.data() };
     
     res.render('profile', { 
-      user: req.session.user,
+      user: updatedUser,
       message: 'Profile updated successfully!'
     });
     
@@ -345,18 +439,20 @@ app.post('/complete-profile', async (req, res) => {
   const { username, displayName } = req.body;
   
   try {
-    // Check if username already exists
-    if (db.users.some(u => u.username === username && u.id !== req.user.id)) {
+    const userRef = firebaseAdmin.firestore().collection('users');
+    const userSnapshot = await userRef.where('username', '==', username).get();
+    
+    if (!userSnapshot.empty && userSnapshot.docs[0].id !== req.user.id) {
       return res.render('complete-profile', { 
         user: req.user, 
         error: 'Username already taken' 
       });
     }
     
-    // Find user in database
-    const userIndex = db.users.findIndex(u => u.id === req.user.id);
+    const userDocRef = userRef.doc(req.user.id);
+    const userDoc = await userDocRef.get();
     
-    if (userIndex === -1) {
+    if (!userDoc.exists) {
       return res.render('complete-profile', { 
         user: req.user, 
         error: 'User not found' 
@@ -364,12 +460,11 @@ app.post('/complete-profile', async (req, res) => {
     }
     
     // Update username, displayName and remove isNewUser flag
-    db.users[userIndex].username = username;
-    db.users[userIndex].displayName = displayName || username;
-    db.users[userIndex].isNewUser = false;
-    
-    // Save to database
-    saveDb();
+    await userDocRef.update({
+      username,
+      displayName: displayName || username,
+      isNewUser: false
+    });
     
     // Update session and passport user
     req.user.username = username;
@@ -384,6 +479,22 @@ app.post('/complete-profile', async (req, res) => {
       user: req.user, 
       error: 'Something went wrong. Please try again.'
     });
+  }
+});
+
+// Trending Route
+app.get('/trending', async (req, res) => {
+  try {
+    const outfitsSnapshot = await firebaseAdmin.firestore().collection('outfits').orderBy('fireVotes', 'desc').limit(10).get();
+    const outfits = outfitsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // Pass userId to the template if the user is logged in
+    const userId = req.user ? req.user.googleId || req.user.githubId || req.user.email : null;
+
+    res.render('trending', { outfits, user: req.user, userId });
+  } catch (error) {
+    console.error('Error fetching trending outfits:', error);
+    res.status(500).send('Error fetching trending outfits');
   }
 });
 
