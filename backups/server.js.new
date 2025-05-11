@@ -1,0 +1,284 @@
+require('dotenv').config(); // Load environment variables
+const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const admin = require('firebase-admin'); // Firebase Admin SDK
+const session = require('express-session'); // Session management
+const axios = require('axios'); // HTTP client for API requests
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Initialize Firebase Admin SDK
+const serviceAccount = require('./rate-my-fit-bf625-firebase-adminsdk-fbsvc-393c53b96f.json');
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+
+const db = admin.firestore(); // Firestore database instance
+
+// Initialize session middleware
+app.use(session({
+  secret: 'a3f8c9e7d6b5a4f3c2e1d0f9b8a7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7', 
+  resave: false,
+  saveUninitialized: true,
+  cookie: { secure: process.env.NODE_ENV === 'production' } // Using secure cookies in production
+}));
+
+// Set Storage Engine for Multer
+const storage = multer.diskStorage({
+  destination: './public/uploads/',
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  }
+});
+
+// Initialize Multer
+const upload = multer({ storage });
+
+// Middleware
+app.use(express.static('public')); // Serve static files (CSS, images)
+app.use(express.urlencoded({ extended: true })); // Parse form data
+app.use(express.json()); // Parse JSON requests
+app.set('view engine', 'ejs'); // Set EJS as the template engine
+
+// Pass user to all views
+app.use((req, res, next) => {
+  res.locals.user = req.session ? req.session.user : null;
+  next();
+});
+
+// Authentication Middleware
+function checkAuth(req, res, next) {
+  if (!req.session || !req.session.user) {
+    // If no session or user, redirect to login
+    return res.redirect('/login');
+  }
+  next(); // User is authenticated, proceed to the next middleware/route
+}
+
+// Routes
+
+// Home Page Route
+app.get('/', (req, res) => {
+  res.render('index', { msg: null, file: null }); // Default values for msg and file
+});
+
+// Trending Page Route
+app.get('/trending', async (req, res) => {
+  try {
+    const outfitsSnapshot = await db.collection('outfits').get();
+    const outfits = outfitsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    const userId = req.session.user ? req.session.user.uid : "guest"; 
+    res.render('trending', { outfits, userId });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Error: ' + error.message);
+  }
+});
+
+// Protect the upload route
+app.post('/upload', checkAuth, upload.single('fitImage'), (req, res) => {
+  if (!req.file) {
+    return res.render('index', { msg: 'No file uploaded!', file: null });
+  }
+  res.render('index', { msg: 'File uploaded successfully!', file: `/uploads/${req.file.filename}` });
+});
+
+// Login page route
+app.get('/login', (req, res) => {
+  const { message, error } = req.query;
+  res.render('login', { message, error });
+});
+
+// Social auth routes
+
+// Auth state handler - Called after returning from Firebase auth
+app.get('/auth/handler', async (req, res) => {
+  const { token, error } = req.query;
+  
+  if (error) {
+    return res.redirect('/login?error=' + encodeURIComponent(error));
+  }
+  
+  if (!token) {
+    return res.redirect('/login?error=Missing authentication token');
+  }
+  
+  try {
+    // Verify the Firebase ID token
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    const { uid, email, name, picture } = decodedToken;
+    
+    // Check if user exists in Firestore
+    const userRef = db.collection('users').doc(uid);
+    const userDoc = await userRef.get();
+    
+    if (!userDoc.exists) {
+      // New user, redirect to profile completion
+      req.session.tempUser = { uid, email, name, picture };
+      return res.redirect('/complete-profile');
+    }
+    
+    // Existing user, set session
+    const userData = userDoc.data();
+    req.session.user = {
+      uid,
+      email,
+      username: userData.username,
+      displayName: userData.displayName,
+      photoURL: userData.photoURL || picture,
+    };
+    
+    // Update last login time
+    await userRef.update({
+      lastLogin: admin.firestore.FieldValue.serverTimestamp()
+    });
+    
+    res.redirect('/dashboard');
+  } catch (error) {
+    console.error('Auth handler error:', error);
+    res.redirect('/login?error=' + encodeURIComponent('Authentication failed'));
+  }
+});
+
+// Complete profile route for new users
+app.get('/complete-profile', (req, res) => {
+  if (!req.session.tempUser) {
+    return res.redirect('/login');
+  }
+  
+  res.render('complete-profile', { user: req.session.tempUser });
+});
+
+app.post('/complete-profile', async (req, res) => {
+  if (!req.session.tempUser) {
+    return res.redirect('/login');
+  }
+  
+  const { username, displayName } = req.body;
+  const { uid, email, picture } = req.session.tempUser;
+  
+  try {
+    // Check if username is already taken
+    const usernameQuery = await db.collection('users')
+      .where('username', '==', username)
+      .get();
+    
+    if (!usernameQuery.empty) {
+      return res.render('complete-profile', { 
+        user: req.session.tempUser,
+        error: 'Username already taken'
+      });
+    }
+    
+    // Save user to Firestore
+    const userRef = db.collection('users').doc(uid);
+    await userRef.set({
+      email,
+      username,
+      displayName,
+      photoURL: picture,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastLogin: admin.firestore.FieldValue.serverTimestamp()
+    });
+    
+    // Set session
+    req.session.user = {
+      uid,
+      email,
+      username,
+      displayName,
+      photoURL: picture,
+    };
+    
+    // Clear temporary user data
+    delete req.session.tempUser;
+    
+    res.redirect('/dashboard');
+  } catch (error) {
+    console.error('Profile completion error:', error);
+    res.render('complete-profile', {
+      user: req.session.tempUser,
+      error: 'Error creating profile: ' + error.message
+    });
+  }
+});
+
+// Dashboard Route
+app.get('/dashboard', checkAuth, async (req, res) => {
+  try {
+    // Get user uid from session
+    const { uid } = req.session.user;
+
+    // Fetch user data from Firestore
+    const userRef = db.collection('users').doc(uid);
+    const doc = await userRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).send('User not found!');
+    }
+
+    const user = doc.data();
+
+    // Render the dashboard view with user data
+    res.render('dashboard', { user });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Error: ' + error.message);
+  }
+});
+
+// Protect the voting route
+app.post('/vote', checkAuth, async (req, res) => {
+  const { outfitId, voteType } = req.body;
+  const userId = req.session.user.uid;
+
+  try {
+    const outfitRef = db.collection('outfits').doc(outfitId);
+    const doc = await outfitRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).send('Outfit not found!');
+    }
+
+    const outfit = doc.data();
+    const voters = outfit.voters || [];
+    if (voters.includes(userId)) {
+      return res.status(400).send('You have already voted for this outfit!');
+    }
+
+    if (voteType === 'fire') {
+      outfit.fireVotes = (outfit.fireVotes || 0) + 1;
+    } else if (voteType === 'nope') {
+      outfit.nopeVotes = (outfit.nopeVotes || 0) + 1;
+    } else {
+      return res.status(400).send('Invalid vote type!');
+    }
+
+    voters.push(userId);
+    await outfitRef.update({
+      fireVotes: outfit.fireVotes,
+      nopeVotes: outfit.nopeVotes,
+      voters: voters,
+    });
+
+    res.send('Vote recorded!');
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Error: ' + error.message);
+  }
+});
+
+app.get('/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.redirect('/login'); // Redirect to login after logout
+  });
+});
+
+// Start Server
+app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));

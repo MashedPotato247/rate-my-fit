@@ -1,39 +1,82 @@
 # Setup Instructions for Rate My Fit App
 
-## Email Configuration
+## OAuth Configuration
 
-To enable email functionality, update the `.env` file with your Gmail credentials:
+### Google OAuth 
 
-1. Use your Gmail account or create a new one for your app
-2. If you have 2FA enabled on your Google account (recommended), you'll need to generate an "App Password"
-   - Go to https://myaccount.google.com/security
-   - Under "Signing in to Google", select "App passwords" 
-   - Generate a new app password for "Mail" and "Other (Custom name)"
-   - Use this generated password in the EMAIL_PASS field below
-
-3. Update the .env file with your credentials:
+1. Go to Google Cloud Console: https://console.cloud.google.com/
+2. Create a project or select your existing project
+3. Navigate to "APIs & Services" > "Credentials"
+4. Create an OAuth 2.0 Client ID
+5. Set up the consent screen if prompted
+6. Add authorized JavaScript origins: `http://localhost:3000`
+7. Add authorized redirect URIs: `http://localhost:3000/auth/google/callback`
+8. Copy the Client ID and Client Secret
+9. Update the `.env` file:
 ```
-EMAIL_USER=your.gmail.account@gmail.com
-EMAIL_PASS=your-app-password-from-google
-```
-
-## Firebase Configuration
-
-To enable Firebase Authentication, update the `.env` file with your Firebase API key:
-
-1. Go to your Firebase Console: https://console.firebase.google.com/project/rate-my-fit-bf625/settings/general/
-2. Under "Your apps", find the Web app configuration 
-3. Look for "apiKey" value in the Firebase config object
-4. Update the .env file with this key:
-```
-FIREBASE_API_KEY=your-firebase-api-key-here
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
 ```
 
-## Running the App
+### Microsoft OAuth
 
-Once you've set up the .env file, run the app with:
+1. Go to Microsoft Azure Portal: https://portal.azure.com/
+2. Navigate to "Azure Active Directory" > "App registrations"
+3. Register a new application
+4. Set redirect URI: `http://localhost:3000/auth/microsoft/callback`
+5. Copy the Application (client) ID and create a client secret
+6. Update the `.env` file:
 ```
-node server.js
+MICROSOFT_CLIENT_ID=your-microsoft-client-id
+MICROSOFT_CLIENT_SECRET=your-microsoft-client-secret
+```
+
+## Session Secret
+
+For better security, update the session secret in your .env file:
+```
+SESSION_SECRET=your-random-secret-key
+```
+
+You can generate a random string for this purpose using this command in your terminal:
+```
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+## Firebase Configuration (Optional)
+
+If you want to still use Firebase for storing data, update the `.env` file with your Firebase credentials. You'll need a Firebase Admin SDK service account JSON file.
+
+## Development Setup
+
+1. Install dependencies:
+```
+npm install
+```
+
+2. Run the app in development mode:
+```
+npm run dev
+```
+
+3. For production:
+```
+npm start
 ```
 
 The app will be available at http://localhost:3000
+
+## Project Structure
+
+- `/views`: EJS templates for the front-end
+- `/public`: Static assets like CSS, JS, and uploads
+- `/data`: Local JSON database storage
+- `server.js`: Main application file
+
+## How Authentication Works
+
+The app supports both traditional username/password login and social login (Google, Microsoft).
+
+- Traditional login uses bcrypt for password hashing and stores user data in a JSON file
+- Social login uses Passport.js and the respective strategies to authenticate users
+- New social login users will be redirected to complete their profile by choosing a username

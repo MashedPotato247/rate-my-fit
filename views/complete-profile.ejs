@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Complete Your Profile | Rate My Fit</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body {
+      background-color: #1f1f38;
+      overflow-y: hidden; 
+    }
+    .login-main-custom {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+    .login-container {
+      position: relative;
+      width: 90%;
+      max-width: 400px;
+      margin: 0 auto;
+      z-index: 1;
+    }
+    .form-container {
+      position: relative;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 15px;
+      padding: 2rem;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+      z-index: 10;
+    }
+    .circle {
+      position: absolute;
+      border-radius: 50%;
+      background: linear-gradient(90deg, #ff4d4d, #f9cb28);
+      z-index: 0;
+    }
+    .circle-one {
+      height: 250px;
+      width: 250px;
+      top: 0;
+      left: 0;
+      transform: translate(-40%, -40%);
+    }
+    .circle-two {
+      height: 350px;
+      width: 350px;
+      right: 0;
+      bottom: 0;
+      transform: translate(40%, 40%);
+    }
+    .user-profile {
+      display: flex;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+    .user-avatar {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      overflow: hidden;
+      margin-right: 15px;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+    .user-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .user-email {
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 0.9rem;
+    }
+    .complete-profile-form input {
+      width: 100%;
+      padding: 15px;
+      margin: 10px 0;
+      background-color: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 5px;
+      color: white;
+      font-family: 'Poppins', sans-serif;
+      transition: border-color 0.3s ease;
+    }
+    .complete-profile-form input:focus {
+      border-color: #ff4d4d;
+      outline: none;
+    }
+    .complete-profile-form input::placeholder {
+      color: rgba(255, 255, 255, 0.5);
+    }
+    .complete-profile-form button {
+      width: 100%;
+      padding: 15px;
+      margin-top: 20px;
+      border: none;
+      border-radius: 50px;
+      background: linear-gradient(90deg, #ff4d4d, #f9cb28);
+      color: white;
+      font-family: 'Poppins', sans-serif;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .complete-profile-form button:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    }
+    .input-info {
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 0.8rem;
+      text-align: left;
+      margin-top: -5px;
+      margin-bottom: 10px;
+    }
+    h1, h2 {
+      color: white;
+      text-align: center;
+    }
+    .alert {
+      margin-bottom: 20px; 
+      padding: 10px; 
+      border-radius: 5px; 
+      color: #fff; 
+      text-align: center; 
+      font-size: 14px;
+    }
+    .alert-error {
+      background-color: rgba(255,77,77,0.2);
+    }
+    .opacity {
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body class="login-page">
+  
+  <section class="login-main-custom">
+    <div class="login-container">
+      <div class="circle circle-one"></div>
+      <div class="form-container">
+        <h1 class="opacity">🔥 COMPLETE YOUR PROFILE</h1>
+        
+        <% if (locals.error) { %>
+          <div class="alert alert-error">
+            <%= error %>
+          </div>
+        <% } %>
+        
+        <div class="user-profile">
+          <div class="user-avatar">
+            <img src="<%= user.photoURL || 'https://i.pravatar.cc/150?img=67' %>" alt="Profile Picture">
+          </div>
+          <div class="user-info">
+            <h2><%= user.displayName || 'New User' %></h2>
+            <div class="user-email"><%= user.email %></div>
+          </div>
+        </div>
+        
+        <form action="/complete-profile" method="POST" class="complete-profile-form">
+          <input type="text" name="username" placeholder="USERNAME (NO SPACES)" required 
+                 pattern="^[a-zA-Z0-9_]+$" minlength="3" maxlength="20">
+          <div class="input-info">3-20 characters, only letters, numbers, and underscores</div>
+          
+          <input type="text" name="displayName" placeholder="DISPLAY NAME" required 
+                 value="<%= user.displayName || '' %>" maxlength="30">
+          <div class="input-info">This is the name others will see</div>
+          
+          <button type="submit">COMPLETE PROFILE</button>
+        </form>
+      </div>
+      <div class="circle circle-two"></div>
+    </div>
+  </section>
+  
+</body>
+</html>

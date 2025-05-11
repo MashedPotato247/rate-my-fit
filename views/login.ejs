@@ -5,45 +5,202 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login | Rate My Fit</title>
   <link rel="stylesheet" href="/css/styles.css">
-  <link rel="stylesheet" href="/css/login-styles.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     body {
       background-color: #1f1f38;
       overflow-y: hidden; 
+    }
+    .login-main-custom {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+    .login-container {
+      position: relative;
+      width: 90%;
+      max-width: 400px;
+      margin: 0 auto;
+      z-index: 1;
+    }
+    .form-container {
+      position: relative;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 15px;
+      padding: 2rem;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+      z-index: 10;
+      text-align: center;
+    }
+    .circle {
+      position: absolute;
+      border-radius: 50%;
+      background: linear-gradient(90deg, #ff4d4d, #f9cb28);
+      z-index: 0;
+    }
+    .circle-one {
+      height: 250px;
+      width: 250px;
+      top: 0;
+      left: 0;
+      transform: translate(-40%, -40%);
+    }
+    .circle-two {
+      height: 350px;
+      width: 350px;
+      right: 0;
+      bottom: 0;
+      transform: translate(40%, 40%);
+    }
+    .illustration {
+      width: 60%;
+      max-width: 200px;
+      margin-bottom: 1rem;
+    }
+    .social-login-btn {
+      width: 100%;
+      padding: 15px;
+      margin: 12px 0;
+      border: none;
+      border-radius: 50px;
+      background-color: white;
+      color: #333;
+      font-family: 'Poppins', sans-serif;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .social-login-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    }
+    .social-login-btn i {
+      margin-right: 10px;
+      font-size: 1.5rem;
+    }
+    .google-btn {
+      background-color: white;
+    }
+    .google-btn i {
+      color: #4285F4;
+    }
+    .apple-btn {
+      background-color: black;
+      color: white;
+    }
+    .microsoft-btn {
+      background-color: #2f2f2f;
+      color: white;
+    }
+    .microsoft-btn i {
+      color: #00a4ef;
+    }
+    .github-btn {
+      background-color: #333;
+      color: white;
+    }
+    .github-btn i {
+      color: white;
+    }
+    .github-btn:hover {
+      background-color: #444;
+    }
+    .alert {
+      margin-bottom: 20px; 
+      padding: 10px; 
+      border-radius: 5px; 
+      color: #fff; 
+      text-align: center; 
+      font-size: 14px;
+    }
+    .alert-error {
+      background-color: rgba(255,77,77,0.2);
+    }
+    .alert-success {
+      background-color: rgba(0,255,100,0.2);
+    }
+    .opacity {
+      opacity: 0.8;
     }
   </style>
 </head>
 <body class="login-page">
   
   <section class="login-main-custom">
-    <div class="login-container"> <!-- This is the main wrapper for the card and decorative circles -->
+    <div class="login-container"> 
       <div class="circle circle-one"></div>
-      <div class="form-container"> <!-- This is the glassmorphism card itself -->
+      <div class="form-container"> 
         <img src="https://raw.githubusercontent.com/hicodersofficial/glassmorphism-login-form/master/assets/illustration.png" alt="illustration" class="illustration">
         <h1 class="opacity">🔥 RATE MY FIT</h1>
+        
         <% if (locals.message || locals.error) { %>
-          <div class="alert <%= locals.error ? 'alert-error' : 'alert-success' %>" style="margin-bottom: 20px; padding: 10px; border-radius: 5px; background-color: <%= locals.error ? 'rgba(255,77,77,0.2)' : 'rgba(0,255,100,0.2)' %>; color: #fff; text-align: center; font-size: 14px;">
+          <div class="alert <%= locals.error ? 'alert-error' : 'alert-success' %>">
             <%= locals.message || locals.error %>
           </div>
         <% } %>
-        <form action="/login" method="POST">
-          <input type="text" name="email" placeholder="YOUR EMAIL" required>
-          <input type="password" name="password" placeholder="YOUR PASSWORD" required>
-          <button type="submit" class="opacity">GET STARTED</button>
-        </form>
-        <div class="register-forget opacity">
-          <a href="/register">REGISTER</a>
-          <a href="/forgot-password">FORGOT PASSWORD</a>
-        </div>
         
-        <!-- The theme-btn-container has been removed -->
-        <p class="footer-text opacity" style="margin-top: 1.5rem; text-align: center; font-size: 0.9rem;">Made with ❤️ by Anush. Let's make it to America! 🇺🇸</p>
+        <p class="opacity" style="margin-bottom: 25px; color: white;">Sign in to continue</p>
+        
+        <!-- Social Login Buttons -->
+        <a href="/auth/google" class="social-login-btn google-btn">
+          <i class="fab fa-google"></i> Continue with Google
+        </a>
+        <a href="/auth/github" class="social-login-btn github-btn">
+          <i class="fab fa-github"></i> Continue with GitHub
+        </a>
+        
+        <p class="footer-text opacity" style="margin-top: 1.5rem; text-align: center; font-size: 0.9rem; color: white;">
+          Made with ❤️ by Anush. Let's make it to America! 🇺🇸
+        </p>
       </div>
       <div class="circle circle-two"></div>
     </div>
   </section>
-
+  
   <script src="/js/login.js"></script>
+      authDomain: "rate-my-fit-bf625.firebaseapp.com",
+      projectId: "rate-my-fit-bf625",
+      storageBucket: "rate-my-fit-bf625.appspot.com",
+      messagingSenderId: "<%= process.env.FIREBASE_MESSAGING_SENDER_ID || '' %>",
+      appId: "<%= process.env.FIREBASE_APP_ID || '' %>"
+    };
+    
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    
+    // Sign in with Google
+    function signInWithGoogle() {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      firebase.auth().signInWithPopup(provider)
+        .then(handleAuthSuccess)
+        .catch(handleAuthError);
+    }
+    
+    // Handle successful authentication
+    function handleAuthSuccess(result) {
+      // Get the user's ID token
+      result.user.getIdToken().then(idToken => {
+        // Send the token to the backend
+        window.location.href = `/auth/handler?token=${idToken}`;
+      });
+    }
+    
+    // Handle authentication errors
+    function handleAuthError(error) {
+      console.error("Auth error:", error);
+      alert("Authentication failed: " + error.message);
+    }
+  </script>
 </body>
 </html>

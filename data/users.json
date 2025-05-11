@@ -1,0 +1,24 @@
+{
+  "users": [
+    {
+      "id": "1746976138414",
+      "googleId": "117481820413584913862",
+      "username": "anushvishwakarma",
+      "email": "ratemyfit.fc0z@gmail.com",
+      "displayName": "Anush",
+      "photoURL": "https://lh3.googleusercontent.com/a/ACg8ocL7sTE4VewzLVDQKtH4y0RtsUovNXdExLcW32ChTxx7BrPQuQ=s96-c",
+      "createdAt": "2025-05-11T15:08:58.414Z",
+      "isNewUser": false
+    },
+    {
+      "id": "1746985658167",
+      "githubId": "200350066",
+      "username": "123",
+      "email": null,
+      "displayName": "MashedPotato247",
+      "photoURL": "https://avatars.githubusercontent.com/u/200350066?v=4",
+      "createdAt": "2025-05-11T17:47:38.167Z",
+      "isNewUser": false
+    }
+  ]
+}
