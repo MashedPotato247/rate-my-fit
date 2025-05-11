@@ -113,15 +113,20 @@
   </style>
 </head>
 <body>
-  <!-- Navigation Bar -->
-  <div class="navbar">
-    <a href="/" class="logo">🔥 RateMyFit</a>
-    <div class="nav-links">
-      <a href="/">Home</a>
-      <a href="/trending">Trending</a>
-      <a href="/dashboard" class="active">Dashboard</a>
-    </div>
+ 
+ <div class="navbar">
+  <a href="/" class="logo">🔥 RateMyFit</a>
+  <div class="nav-links">
+    <a href="/">Home</a>
+    <a href="/trending">Trending</a>
+    <% if (user) { %>
+      <a href="/dashboard">Dashboard</a>
+      <a href="/logout">Logout</a>
+    <% } else { %>
+      <a href="/login">Login</a>
+    <% } %>
   </div>
+</div>
 
   <div class="container">
     <h1>Dashboard</h1>

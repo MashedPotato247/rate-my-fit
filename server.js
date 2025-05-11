@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const admin = require('firebase-admin'); // Firebase Admin SDK
+const session = require('express-session'); // Add this at the top of your file
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,6 +15,13 @@ admin.initializeApp({
 });
 
 const db = admin.firestore(); // Firestore database instance
+
+// Initialize session middleware
+app.use(session({
+  secret: 'a3f8c9e7d6b5a4f3c2e1d0f9b8a7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7', // 128-character randomly generated key
+  resave: false,
+  saveUninitialized: true,
+}));
 
 // Set Storage Engine for Multer
 const storage = multer.diskStorage({
@@ -30,6 +38,21 @@ const upload = multer({ storage });
 app.use(express.static('public')); // Serve static files (like CSS, images)
 app.use(express.urlencoded({ extended: true })); // Parse form data
 app.set('view engine', 'ejs'); // Set EJS as the template engine
+
+// Example: Pass user to all views
+app.use((req, res, next) => {
+  res.locals.user = req.session ? req.session.user : null;
+  next();
+});
+
+// Authentication Middleware
+function checkAuth(req, res, next) {
+  if (!req.session || !req.session.user) {
+    // If no session or user, redirect to login
+    return res.redirect('/login');
+  }
+  next(); // User is authenticated, proceed to the next middleware/route
+}
 
 // Routes
 
@@ -55,13 +78,11 @@ app.get('/trending', async (req, res) => {
   }
 });
 
-// Upload Route
-app.post('/upload', upload.single('fitImage'), (req, res) => {
+// Protect the upload route
+app.post('/upload', checkAuth, upload.single('fitImage'), (req, res) => {
   if (!req.file) {
-    // Handle case where no file is uploaded
     return res.render('index', { msg: 'No file uploaded!', file: null });
   }
-  // File successfully uploaded
   res.render('index', { msg: 'File uploaded successfully!', file: `/uploads/${req.file.filename}` });
 });
 
@@ -96,6 +117,10 @@ app.post('/register', async (req, res) => {
   }
 });
 
+app.get('/register', (req, res) => {
+  res.render('register'); // Render the register.ejs file
+});
+
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
@@ -117,11 +142,22 @@ app.post('/login', async (req, res) => {
       return res.status(400).send('Invalid credentials!');
     }
 
-    res.send('Login successful!');
+    // Set user in session
+    req.session.user = {
+      username: user.username,
+      email: user.email,
+    };
+
+    // Redirect to dashboard
+    res.redirect(`/dashboard?email=${email}`);
   } catch (error) {
     console.error(error);
-    res.status(400).send('Error: ' + error.message);
+    res.status(500).send('Error: ' + error.message);
   }
+});
+
+app.get('/login', (req, res) => {
+  res.render('login'); // Render the login.ejs file
 });
 
 // Dashboard Route
@@ -147,9 +183,9 @@ app.get('/dashboard', async (req, res) => {
   }
 });
 
-// Voting Route
-app.post('/vote', async (req, res) => {
-  const { outfitId, voteType, userId } = req.body; // Include userId in the request
+// Protect the voting route
+app.post('/vote', checkAuth, async (req, res) => {
+  const { outfitId, voteType, userId } = req.body;
 
   try {
     const outfitRef = db.collection('outfits').doc(outfitId);
@@ -160,14 +196,11 @@ app.post('/vote', async (req, res) => {
     }
 
     const outfit = doc.data();
-
-    // Check if the user has already voted
-    const voters = outfit.voters || []; // Get the list of voters (default to empty array)
+    const voters = outfit.voters || [];
     if (voters.includes(userId)) {
       return res.status(400).send('You have already voted for this outfit!');
     }
 
-    // Update vote count
     if (voteType === 'fire') {
       outfit.fireVotes = (outfit.fireVotes || 0) + 1;
     } else if (voteType === 'nope') {
@@ -176,10 +209,7 @@ app.post('/vote', async (req, res) => {
       return res.status(400).send('Invalid vote type!');
     }
 
-    // Add the user to the list of voters
     voters.push(userId);
-
-    // Save updated votes and voters back to Firestore
     await outfitRef.update({
       fireVotes: outfit.fireVotes,
       nopeVotes: outfit.nopeVotes,
@@ -191,6 +221,12 @@ app.post('/vote', async (req, res) => {
     console.error(error);
     res.status(500).send('Error: ' + error.message);
   }
+});
+
+app.get('/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.redirect('/login'); // Redirect to login after logout
+  });
 });
 
 // Start Server

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register | Rate My Fit</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body.login-page {
+      background-color: var(--background);
+      overflow-y: hidden;
+    }
+    .login-main-custom {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body class="login-page">
+  
+  <section class="login-main-custom">
+    <div class="login-container">
+      <div class="circle circle-one"></div>
+      <div class="form-container">
+        <img src="https://raw.githubusercontent.com/hicodersofficial/glassmorphism-login-form/master/assets/illustration.png" alt="illustration" class="illustration">
+        <h1 class="opacity">🔥 REGISTER</h1>
+        <form action="/register" method="POST">
+          <input type="text" name="username" placeholder="USERNAME" required>
+          <input type="email" name="email" placeholder="EMAIL" required>
+          <input type="password" name="password" placeholder="PASSWORD" required>
+          <button type="submit" class="opacity">SIGN UP</button>
+        </form>
+        <div class="register-forget opacity">
+          <a href="/login">BACK TO LOGIN</a>
+        </div>
+      </div>
+      <div class="circle circle-two"></div>
+    </div>
+    <div class="theme-btn-container"></div>
+  </section>
+
+  <footer>
+    Made with ❤️ by Anush. Let's make it to America! 🇺🇸
+  </footer>
+
+  <script src="/js/login.js"></script>
+</body>
+</html>

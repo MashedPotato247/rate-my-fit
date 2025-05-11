@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login | Rate My Fit</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body.login-page {
+      background-color: var(--background); /* Uses variable from styles.css */
+      overflow-y: hidden; /* This will prevent vertical scrollbar on the body */
+    }
+    .login-main-custom {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden; /* This will prevent scrollbars from this main container */
+    }
+  </style>
+</head>
+<body class="login-page">
+  
+  <section class="login-main-custom">
+    <div class="login-container"> <!-- This is the main wrapper for the card and decorative circles -->
+      <div class="circle circle-one"></div>
+      <div class="form-container"> <!-- This is the glassmorphism card itself -->
+        <img src="https://raw.githubusercontent.com/hicodersofficial/glassmorphism-login-form/master/assets/illustration.png" alt="illustration" class="illustration">
+        <h1 class="opacity">🔥 RATE MY FIT</h1>
+        <form action="/login" method="POST">
+          <input type="text" name="email" placeholder="YOUR USERNAME" required>
+          <input type="password" name="password" placeholder="YOUR PASSWORD" required>
+          <button type="submit" class="opacity">GET STARTED</button>
+        </form>
+        <div class="register-forget opacity">
+          <a href="/register">REGISTER</a>
+          <a href="/forgot-password">FORGOT PASSWORD</a>
+        </div>
+        
+        <!-- The theme-btn-container has been removed -->
+        <p class="footer-text opacity" style="margin-top: 1.5rem; text-align: center; font-size: 0.9rem;">Made with ❤️ by Anush. Let's make it to America! 🇺🇸</p>
+      </div>
+      <div class="circle circle-two"></div>
+    </div>
+  </section>
+
+  <script src="/js/login.js"></script>
+</body>
+</html>
