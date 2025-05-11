@@ -1,8 +1,12 @@
+require('dotenv').config(); // Load environment variables
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const admin = require('firebase-admin'); // Firebase Admin SDK
-const session = require('express-session'); // Add this at the top of your file
+const session = require('express-session'); // Session management
+const nodemailer = require('nodemailer'); // Email sending functionality
+const bcrypt = require('bcrypt'); // Password hashing
+const axios = require('axios'); // HTTP client for API requests
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,6 +19,16 @@ admin.initializeApp({
 });
 
 const db = admin.firestore(); // Firestore database instance
+
+// Setup Nodemailer transporter using Gmail for testing
+// For production, consider using a dedicated email service
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER || 'your.email@gmail.com', // Replace with your actual Gmail or use environment variables
+    pass: process.env.EMAIL_PASS || 'your-app-password' // Use an App Password if you have 2FA enabled
+  }
+});
 
 // Initialize session middleware
 app.use(session({
@@ -86,13 +100,13 @@ app.post('/upload', checkAuth, upload.single('fitImage'), (req, res) => {
   res.render('index', { msg: 'File uploaded successfully!', file: `/uploads/${req.file.filename}` });
 });
 
-const bcrypt = require('bcrypt'); // Add this at the top of the file
+// User registration route
 
 app.post('/register', async (req, res) => {
   const { username, email, password } = req.body;
 
   try {
-    // Check if user already exists
+    // Check if user already exists in Firestore
     const userRef = db.collection('users').doc(email);
     const doc = await userRef.get();
 
@@ -100,17 +114,58 @@ app.post('/register', async (req, res) => {
       return res.status(400).send('User already exists!');
     }
 
-    // Hash the password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Save new user
+    // Create the user in Firebase Authentication
+    const firebaseUser = await admin.auth().createUser({
+      email,
+      password,
+      displayName: username,
+      emailVerified: false, // Default is false, being explicit
+    });
+    
+    // Generate a random 6-digit verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationExpires = Date.now() + 3600000; // 1 hour from now
+    
+    // Store verification code in Firestore
+    await db.collection('verification_codes').doc(email).set({
+      code: verificationCode,
+      expires: verificationExpires
+    });
+    
+    // Save the user to Firestore
     await userRef.set({
       username,
       email,
-      password: hashedPassword, // Save the hashed password
+      uid: firebaseUser.uid, // Store the Firebase UID for reference
+      emailVerified: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
+    
+    // Send verification email with 6-digit code
+    const mailOptions = {
+      from: '"Rate My Fit" <noreply@ratemyfit.com>',
+      to: email,
+      subject: 'Verify your Rate My Fit account',
+      html: `
+        <h1>Welcome to Rate My Fit!</h1>
+        <p>Hey ${username}! Thanks for joining our community. 🔥</p>
+        <p>Please verify your email address by entering the 6-digit code below on our website:</p>
+        <div style="font-size: 24px; letter-spacing: 5px; text-align: center; margin: 20px; padding: 10px; background-color: #f7f7f7; font-family: monospace; font-weight: bold;">${verificationCode}</div>
+        <p>This code will expire in 1 hour.</p>
+      `
+    };
 
-    res.send('The account was created successfully');
+    try {
+      // Send verification email
+      await transporter.sendMail(mailOptions);
+      console.log(`Verification email sent to: ${email}`);
+    } catch (emailError) {
+      console.error('Error sending verification email:', emailError);
+      // We still want to create the user even if email fails
+    }
+    
+    // Redirect to verification page
+    res.redirect(`/verify?email=${email}`);
   } catch (error) {
     console.error(error);
     res.status(400).send('Error: ' + error.message);
@@ -125,31 +180,117 @@ app.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    // Check if user exists
+    // First, check if the user exists in Firebase Auth
+    const userRecord = await admin.auth().getUserByEmail(email)
+      .catch(error => {
+        console.error("Error fetching user:", error);
+        return null;
+      });
+    
+    if (!userRecord) {
+      return res.render('login', { error: 'User does not exist!' });
+    }
+    
+    // Check if email is verified
+    if (!userRecord.emailVerified) {
+      // Generate a new 6-digit verification code
+      const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const verificationExpires = Date.now() + 3600000; // 1 hour from now
+      
+      // Store verification code in Firestore
+      await db.collection('verification_codes').doc(email).set({
+        code: verificationCode,
+        expires: verificationExpires
+      });
+      
+      // Send verification email with 6-digit code
+      const mailOptions = {
+        from: '"Rate My Fit" <noreply@ratemyfit.com>',
+        to: email,
+        subject: 'Verify your Rate My Fit account',
+        html: `
+          <h1>Welcome to Rate My Fit!</h1>
+          <p>Hey ${userRecord.displayName}! Thanks for joining our community. 🔥</p>
+          <p>Please verify your email address by entering the 6-digit code below on our website:</p>
+          <div style="font-size: 24px; letter-spacing: 5px; text-align: center; margin: 20px; padding: 10px; background-color: #f7f7f7; font-family: monospace; font-weight: bold;">${verificationCode}</div>
+          <p>This code will expire in 1 hour.</p>
+        `
+      };
+      
+      try {
+        // Send verification email
+        await transporter.sendMail(mailOptions);
+        console.log(`Verification email sent to: ${email}`);
+      } catch (emailError) {
+        console.error('Error sending verification email:', emailError);
+      }
+      
+      return res.redirect(`/verify?email=${email}&message=Please verify your email before logging in! We sent you a verification code.`);
+    }
+    
+    // Fetch user data from Firestore for additional info
     const userRef = db.collection('users').doc(email);
     const doc = await userRef.get();
-
+    
     if (!doc.exists) {
-      return res.status(400).send('User does not exist!');
+      return res.render('login', { error: 'User account incomplete. Please contact support.' });
     }
-
-    const user = doc.data();
-
-    // Compare the hashed password
-    const isMatch = await bcrypt.compare(password, user.password);
-
-    if (!isMatch) {
-      return res.status(400).send('Invalid credentials!');
+    
+    // Since Firebase Admin SDK doesn't provide password verification,
+    // we need to use the Firebase Auth REST API
+    try {
+      // Get your Firebase Web API Key from Firebase Console -> Project Settings -> General
+      const firebaseApiKey = process.env.FIREBASE_API_KEY || 'YOUR_FIREBASE_API_KEY';
+      
+      // Use Firebase Auth REST API to sign in with email/password
+      const response = await axios.post(
+        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${firebaseApiKey}`,
+        {
+          email,
+          password,
+          returnSecureToken: true
+        }
+      );
+      
+      // If we got here, the password is correct
+      
+      // Set user in session
+      req.session.user = {
+        username: userRecord.displayName,
+        email: userRecord.email,
+        uid: userRecord.uid,
+        emailVerified: userRecord.emailVerified
+      };
+      
+      // Update Firestore record to match Auth status
+      await userRef.update({
+        emailVerified: userRecord.emailVerified,
+        lastLogin: admin.firestore.FieldValue.serverTimestamp()
+      });
+      
+      // Redirect to dashboard
+      res.redirect('/dashboard');
+    } catch (error) {
+      console.error('Login error:', error.response?.data || error.message);
+      return res.render('login', { error: 'Invalid email or password' });
     }
-
+    
     // Set user in session
     req.session.user = {
-      username: user.username,
-      email: user.email,
+      username: userRecord.displayName,
+      email: userRecord.email,
+      uid: userRecord.uid,
+      emailVerified: userRecord.emailVerified
     };
-
+    
+    // Update Firestore record to match Auth status
+    await userRef.update({
+      emailVerified: userRecord.emailVerified,
+      lastLogin: admin.firestore.FieldValue.serverTimestamp()
+    });
+    
     // Redirect to dashboard
-    res.redirect(`/dashboard?email=${email}`);
+    res.redirect('/dashboard');
   } catch (error) {
     console.error(error);
     res.status(500).send('Error: ' + error.message);
@@ -157,14 +298,162 @@ app.post('/login', async (req, res) => {
 });
 
 app.get('/login', (req, res) => {
-  res.render('login'); // Render the login.ejs file
+  const { message, error } = req.query;
+  res.render('login', { message, error }); // Pass any messages to the login template
+});
+
+// Verification routes
+app.get('/verify', (req, res) => {
+  const { email, message, error } = req.query;
+  
+  if (!email) {
+    return res.redirect('/login?error=Email is required for verification');
+  }
+  
+  res.render('verification', { email, message, error });
+});
+
+app.post('/verify', async (req, res) => {
+  const { email, code1, code2, code3, code4, code5, code6 } = req.body;
+  const submittedCode = `${code1}${code2}${code3}${code4}${code5}${code6}`;
+  
+  try {
+    // Get the verification code from Firestore
+    const codeRef = db.collection('verification_codes').doc(email);
+    const codeDoc = await codeRef.get();
+    
+    if (!codeDoc.exists) {
+      return res.render('verification', { 
+        email, 
+        error: 'Verification code not found. Please request a new one.' 
+      });
+    }
+    
+    const { code, expires } = codeDoc.data();
+    
+    // Check if code is expired
+    if (Date.now() > expires) {
+      return res.render('verification', { 
+        email, 
+        error: 'Verification code has expired. Please request a new one.' 
+      });
+    }
+    
+    // Check if code matches
+    if (submittedCode !== code) {
+      return res.render('verification', { 
+        email, 
+        error: 'Invalid verification code. Please try again.' 
+      });
+    }
+    
+    // Code is valid, update user's email verification status in Firebase Auth
+    await admin.auth().updateUser(
+      (await admin.auth().getUserByEmail(email)).uid, 
+      { emailVerified: true }
+    );
+    
+    // Update emailVerified status in Firestore
+    await db.collection('users').doc(email).update({
+      emailVerified: true
+    });
+    
+    // Delete the used verification code
+    await codeRef.delete();
+    
+    // Redirect to login with success message
+    res.redirect('/login?message=Email successfully verified! You can now log in.');
+  } catch (error) {
+    console.error('Verification error:', error);
+    res.render('verification', { 
+      email, 
+      error: 'An error occurred during verification. Please try again.' 
+    });
+  }
+});
+
+app.get('/resend-verification', async (req, res) => {
+  const { email } = req.query;
+  
+  if (!email) {
+    return res.redirect('/login?error=Email is required for verification');
+  }
+  
+  try {
+    // Check if user exists in Firebase Auth
+    const userRecord = await admin.auth().getUserByEmail(email)
+      .catch(error => {
+        console.error("Error fetching user:", error);
+        return null;
+      });
+    
+    if (!userRecord) {
+      return res.redirect('/login?error=User does not exist');
+    }
+    
+    // If email is already verified, no need to resend
+    if (userRecord.emailVerified) {
+      return res.redirect('/login?message=Email is already verified. You can log in.');
+    }
+    
+    // Get username from Firestore
+    const userDoc = await db.collection('users').doc(email).get();
+    if (!userDoc.exists) {
+      return res.redirect('/login?error=User account incomplete');
+    }
+    const username = userDoc.data().username;
+    
+    // Generate a new 6-digit verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationExpires = Date.now() + 3600000; // 1 hour from now
+    
+    // Store verification code in Firestore
+    await db.collection('verification_codes').doc(email).set({
+      code: verificationCode,
+      expires: verificationExpires
+    });
+    
+    // Send verification email with 6-digit code
+    const mailOptions = {
+      from: '"Rate My Fit" <noreply@ratemyfit.com>',
+      to: email,
+      subject: 'Verify your Rate My Fit account',
+      html: `
+        <h1>Welcome to Rate My Fit!</h1>
+        <p>Hey ${username}! Thanks for being part of our community. 🔥</p>
+        <p>Please verify your email address by entering the 6-digit code below on our website:</p>
+        <div style="font-size: 24px; letter-spacing: 5px; text-align: center; margin: 20px; padding: 10px; background-color: #f7f7f7; font-family: monospace; font-weight: bold;">${verificationCode}</div>
+        <p>This code will expire in 1 hour.</p>
+      `
+    };
+
+    try {
+      // Send verification email
+      await transporter.sendMail(mailOptions);
+      console.log(`Verification email resent to: ${email}`);
+      res.render('verification', { 
+        email, 
+        message: 'A new verification code has been sent to your email.' 
+      });
+    } catch (emailError) {
+      console.error('Error sending verification email:', emailError);
+      res.render('verification', { 
+        email, 
+        error: 'Failed to send verification email. Please try again later.' 
+      });
+    }
+  } catch (error) {
+    console.error('Resend verification error:', error);
+    res.redirect(`/verify?email=${email}&error=An error occurred. Please try again.`);
+  }
 });
 
 // Dashboard Route
-app.get('/dashboard', async (req, res) => {
-  const { email } = req.query; // Assume email is passed as a query parameter for now
-
+app.get('/dashboard', checkAuth, async (req, res) => {
   try {
+    // Get user email from session
+    const { email } = req.session.user;
+
     // Fetch user data from Firestore
     const userRef = db.collection('users').doc(email);
     const doc = await userRef.get();

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Email | Rate My Fit</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/login-styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      background-color: #1f1f38;
+      overflow-y: hidden;
+    }
+    }
+    .verification-container {
+      text-align: center;
+    }
+    .code-inputs {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin: 20px 0;
+    }
+    .code-input {
+      width: 40px;
+      height: 50px;
+      font-size: 24px;
+      text-align: center;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      border-radius: 4px;
+    }
+    .resend-link {
+      margin-top: 15px;
+      display: block;
+      font-size: 0.8rem;
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+  
+  <section class="login-main-custom">
+    <div class="login-container">
+      <div class="circle circle-one"></div>
+      <div class="form-container">
+        <img src="https://raw.githubusercontent.com/hicodersofficial/glassmorphism-login-form/master/assets/illustration.png" alt="illustration" class="illustration">
+        <h1 class="opacity">🔥 VERIFY EMAIL</h1>
+        
+        <% if (locals.message || locals.error) { %>
+          <div class="alert <%= locals.error ? 'alert-error' : 'alert-success' %>" style="margin-bottom: 20px; padding: 10px; border-radius: 5px; background-color: <%= locals.error ? 'rgba(255,77,77,0.2)' : 'rgba(0,255,100,0.2)' %>; color: #fff; text-align: center; font-size: 14px;">
+            <%= locals.message || locals.error %>
+          </div>
+        <% } %>
+        
+        <div class="verification-container opacity">
+          <p>We've sent a 6-digit verification code to <strong><%= email %></strong></p>
+          
+          <form action="/verify" method="POST">
+            <input type="hidden" name="email" value="<%= email %>">
+            <div class="code-inputs">
+              <input type="text" name="code1" class="code-input" maxlength="1" pattern="[0-9]" required autofocus>
+              <input type="text" name="code2" class="code-input" maxlength="1" pattern="[0-9]" required>
+              <input type="text" name="code3" class="code-input" maxlength="1" pattern="[0-9]" required>
+              <input type="text" name="code4" class="code-input" maxlength="1" pattern="[0-9]" required>
+              <input type="text" name="code5" class="code-input" maxlength="1" pattern="[0-9]" required>
+              <input type="text" name="code6" class="code-input" maxlength="1" pattern="[0-9]" required>
+            </div>
+            
+            <button type="submit" class="opacity">VERIFY EMAIL</button>
+          </form>
+          
+          <a href="/resend-verification?email=<%= email %>" class="resend-link opacity">Didn't get the code? Resend</a>
+        </div>
+        
+        <div class="register-forget opacity">
+          <a href="/login">BACK TO LOGIN</a>
+        </div>
+      </div>
+      <div class="circle circle-two"></div>
+    </div>
+  </section>
+
+  <script src="/js/login.js"></script>
+  <script>
+    // Auto-tab functionality for verification code input
+    const codeInputs = document.querySelectorAll('.code-input');
+    
+    codeInputs.forEach((input, index) => {
+      input.addEventListener('input', (e) => {
+        // Move to next input if this one is filled
+        if (e.target.value && index < codeInputs.length - 1) {
+          codeInputs[index + 1].focus();
+        }
+      });
+      
+      input.addEventListener('keydown', (e) => {
+        // Allow moving back with backspace
+        if (e.key === 'Backspace' && !e.target.value && index > 0) {
+          codeInputs[index - 1].focus();
+        }
+      });
+    });
+  </script>
+</body>
+</html>

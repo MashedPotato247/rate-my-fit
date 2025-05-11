@@ -5,20 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login | Rate My Fit</title>
   <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/login-styles.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    body.login-page {
-      background-color: var(--background); /* Uses variable from styles.css */
-      overflow-y: hidden; /* This will prevent vertical scrollbar on the body */
-    }
-    .login-main-custom {
-      position: relative;
-      width: 100vw;
-      height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      overflow: hidden; /* This will prevent scrollbars from this main container */
+    body {
+      background-color: #1f1f38;
+      overflow-y: hidden; 
     }
   </style>
 </head>
@@ -30,8 +22,13 @@
       <div class="form-container"> <!-- This is the glassmorphism card itself -->
         <img src="https://raw.githubusercontent.com/hicodersofficial/glassmorphism-login-form/master/assets/illustration.png" alt="illustration" class="illustration">
         <h1 class="opacity">🔥 RATE MY FIT</h1>
+        <% if (locals.message || locals.error) { %>
+          <div class="alert <%= locals.error ? 'alert-error' : 'alert-success' %>" style="margin-bottom: 20px; padding: 10px; border-radius: 5px; background-color: <%= locals.error ? 'rgba(255,77,77,0.2)' : 'rgba(0,255,100,0.2)' %>; color: #fff; text-align: center; font-size: 14px;">
+            <%= locals.message || locals.error %>
+          </div>
+        <% } %>
         <form action="/login" method="POST">
-          <input type="text" name="email" placeholder="YOUR USERNAME" required>
+          <input type="text" name="email" placeholder="YOUR EMAIL" required>
           <input type="password" name="password" placeholder="YOUR PASSWORD" required>
           <button type="submit" class="opacity">GET STARTED</button>
         </form>
