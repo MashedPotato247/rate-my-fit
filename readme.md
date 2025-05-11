@@ -71,22 +71,9 @@ Pull requests are welcome! For major changes, please open an issue first to disc
 
 ---
 
-## 🖼️ Screenshots
-### 1. Home Page
-![Home Page](https://via.placeholder.com/800x400?text=Home+Page)
-
-### 2. Trending Page
-![Trending Page](https://via.placeholder.com/800x400?text=Trending+Page)
-
----
-
-## 🏆 Acknowledgements
-Built with love, sweat, and a dream to go to America! 🇺🇸 Special thanks to **Copilot**, my coding buddy, for helping me stay on track.
-
----
 
 ## 📜 License
-This project is licensed under the **MIT License**. Feel free to use, modify, and share!
+This project is licensed under the **MIT License**.
 
 ---
 
