@@ -37,6 +37,12 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Middleware to make `user` available in all views
+app.use((req, res, next) => {
+  res.locals.user = req.session.user || req.user || null;
+  next();
+});
+
 // Passport serialize/deserialize
 passport.serializeUser((user, done) => {
   // Serialize the user's unique identifier (e.g., googleId or email)
@@ -237,17 +243,72 @@ app.get('/login', (req, res) => {
 // Ensure 'msg' is defined and passed to the template
 app.get('/', (req, res) => {
   const msg = req.query.msg || null; // Retrieve 'msg' from query parameters or set to null
-  const user = req.session.user || null; // Retrieve 'user' from session or set to null
-  res.render('index', { msg, user, file: null }); // Pass 'msg' and 'user' to the template
+  res.render('index', { msg, file: null }); // Pass 'msg' to the template, user comes from middleware
 });
 
 // Dashboard Route
-app.get('/dashboard', checkAuth, (req, res) => {
+app.get('/dashboard', checkAuth, async (req, res) => {
   // User will be available in req.session.user
-  const user = req.session.user;
+  const user = req.session.user || req.user;
   
-  // User data is already in the session, no need for database lookup
-  res.render('dashboard', { user });
+  try {
+    // First, find the user document to get the correct Firestore ID
+    const userCollection = firebaseAdmin.firestore().collection('users');
+    const userQuery = await userCollection.where('email', '==', user.email).get();
+    
+    if (userQuery.empty) {
+      console.error('User not found in Firestore in dashboard:', user.email);
+      return res.render('dashboard', { 
+        user, 
+        uploads: [],
+        totalUploads: 0,
+        totalFireVotes: 0,
+        profileViews: 0,
+        error: 'Could not find your account. Please try logging in again.'
+      });
+    }
+    
+    // Get the user document ID from Firestore
+    const userId = userQuery.docs[0].id;
+    console.log('Found user ID for dashboard:', userId);
+    
+    // Get user's uploads
+    const uploadsQuery = await firebaseAdmin.firestore()
+      .collection('outfits')
+      .where('userId', '==', userId)
+      .orderBy('uploadedAt', 'desc')
+      .get();
+    
+    const uploads = uploadsQuery.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    // Calculate total fire votes received
+    const totalFireVotes = uploads.reduce((total, outfit) => total + (outfit.fireVotes || 0), 0);
+    
+    // Get message from query params if exists
+    const msg = req.query.msg || null;
+    
+    res.render('dashboard', { 
+      user,
+      uploads,
+      totalUploads: uploads.length,
+      totalFireVotes,
+      profileViews: 0, // For future implementation
+      msg
+    });
+  } catch (error) {
+    console.error('Error fetching dashboard data:', error);
+    res.render('dashboard', { 
+      user, 
+      uploads: [],
+      totalUploads: 0,
+      totalFireVotes: 0,
+      profileViews: 0,
+      error: 'Could not load dashboard data'
+    });
+  }
 });
 
 // Profile Route
@@ -384,11 +445,54 @@ app.get('/logout', (req, res) => {
 });
 
 // Protect the upload route
-app.post('/upload', checkAuth, upload, (req, res) => {
+app.post('/upload', checkAuth, upload, async (req, res) => {
   if (!req.file) {
     return res.render('index', { msg: 'No file uploaded!', file: null });
   }
-  res.render('index', { msg: 'File uploaded successfully!', file: `/uploads/${req.file.filename}` });
+  
+  try {
+    const user = req.session.user || req.user;
+    
+    // First, find the user document to get the correct Firestore ID
+    const userCollection = firebaseAdmin.firestore().collection('users');
+    const userQuery = await userCollection.where('email', '==', user.email).get();
+    
+    if (userQuery.empty) {
+      console.error('User not found in Firestore when uploading:', user.email);
+      return res.render('index', { 
+        msg: 'Error finding user account. Please try logging in again.', 
+        file: null 
+      });
+    }
+    
+    // Get the user document ID from Firestore
+    const userDocId = userQuery.docs[0].id;
+    console.log('Found user ID for upload:', userDocId);
+    
+    // Create a new outfit document in Firestore
+    const outfitData = {
+      userId: userDocId, // Use the consistent Firestore document ID
+      username: user.username || user.email.split('@')[0],
+      imageUrl: `/uploads/${req.file.filename}`,
+      fireVotes: 0,
+      nopeVotes: 0,
+      uploadedAt: new Date().toISOString()
+    };
+    
+    console.log('Saving outfit with user ID:', outfitData.userId);
+    
+    // Add to Firestore
+    await firebaseAdmin.firestore().collection('outfits').add(outfitData);
+    
+    // Redirect to the dashboard instead of just rendering
+    res.redirect('/dashboard?msg=File+uploaded+successfully!');
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.render('index', { 
+      msg: 'Error saving your upload. Please try again.', 
+      file: null 
+    });
+  }
 });
 
 // Social Login Routes
@@ -485,16 +589,77 @@ app.post('/complete-profile', async (req, res) => {
 // Trending Route
 app.get('/trending', async (req, res) => {
   try {
+    // Get message and error from query params
+    const { msg, error } = req.query;
+    
+    // Get all outfits for trending page
     const outfitsSnapshot = await firebaseAdmin.firestore().collection('outfits').orderBy('fireVotes', 'desc').limit(10).get();
     const outfits = outfitsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    console.log(`Found ${outfits.length} outfits for trending page`);
+    
+    // Get current user's Firestore ID if logged in
+    let userId = null;
+    if (req.session.user || req.isAuthenticated()) {
+      const user = req.session.user || req.user;
+      
+      try {
+        const userQuery = await firebaseAdmin.firestore().collection('users').where('email', '==', user.email).get();
+        if (!userQuery.empty) {
+          userId = userQuery.docs[0].id;
+        }
+      } catch (err) {
+        console.error('Error getting user ID for trending page:', err);
+      }
+    }
 
-    // Pass userId to the template if the user is logged in
-    const userId = req.user ? req.user.googleId || req.user.githubId || req.user.email : null;
-
-    res.render('trending', { outfits, user: req.user, userId });
+    res.render('trending', { 
+      outfits, 
+      user: req.session.user || req.user, 
+      userId,
+      msg,
+      error
+    });
   } catch (error) {
     console.error('Error fetching trending outfits:', error);
     res.status(500).send('Error fetching trending outfits');
+  }
+});
+
+// Vote route
+app.post('/vote', checkAuth, async (req, res) => {
+  try {
+    const { outfitId, voteType } = req.body;
+    const user = req.session.user || req.user;
+    
+    // Validate required fields
+    if (!outfitId || !voteType || !user) {
+      return res.redirect('/trending?error=Invalid+vote+data');
+    }
+    
+    // Get the outfit document
+    const outfitRef = firebaseAdmin.firestore().collection('outfits').doc(outfitId);
+    const outfitDoc = await outfitRef.get();
+    
+    if (!outfitDoc.exists) {
+      return res.redirect('/trending?error=Outfit+not+found');
+    }
+    
+    // Update the appropriate vote count
+    if (voteType === 'fire') {
+      await outfitRef.update({
+        fireVotes: firebaseAdmin.firestore.FieldValue.increment(1)
+      });
+    } else if (voteType === 'nope') {
+      await outfitRef.update({
+        nopeVotes: firebaseAdmin.firestore.FieldValue.increment(1)
+      });
+    }
+    
+    res.redirect('/trending?msg=Vote+recorded!');
+  } catch (error) {
+    console.error('Vote error:', error);
+    res.redirect('/trending?error=Failed+to+record+vote');
   }
 });
 

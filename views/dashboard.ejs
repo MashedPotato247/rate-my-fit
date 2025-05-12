@@ -122,7 +122,7 @@
       <a href="/dashboard">Dashboard</a>
       <a href="/logout">Logout</a>
     <% } else { %>
-      <a href="/login">Login</a>
+      <a href="/login">Login</a>]
     <% } %>
   </div>
 </div>
@@ -147,17 +147,17 @@
     <div class="dashboard-stats">
       <div class="stat-card">
         <i class="fas fa-tshirt"></i>
-        <div class="stat-number">0</div>
+        <div class="stat-number"><%= totalUploads || 0 %></div>
         <div class="stat-label">Total Uploads</div>
       </div>
       <div class="stat-card">
         <i class="fas fa-fire"></i>
-        <div class="stat-number">0</div>
+        <div class="stat-number"><%= totalFireVotes || 0 %></div>
         <div class="stat-label">Fire Votes Received</div>
       </div>
       <div class="stat-card">
         <i class="fas fa-eye"></i>
-        <div class="stat-number">0</div>
+        <div class="stat-number"><%= profileViews || 0 %></div>
         <div class="stat-label">Profile Views</div>
       </div>
     </div>
@@ -165,12 +165,39 @@
     <div class="uploads-section">
       <h2><i class="fas fa-photo-film"></i> Your Uploaded Fits</h2>
       
-      <div class="empty-uploads">
-        <i class="fas fa-cloud-upload-alt"></i>
-        <h3>No fits uploaded yet</h3>
-        <p>Share your style with the world and get feedback!</p>
+      <% if (locals.msg) { %>
+        <p class="message <%= msg.includes('success') ? 'success' : 'error' %>">
+          <%= msg %>
+        </p>
+      <% } %>
+      
+      <% if (locals.error) { %>
+        <p class="message error">
+          <%= error %>
+        </p>
+      <% } %>
+      
+      <% if (uploads && uploads.length > 0) { %>
+        <div class="gallery">
+          <% uploads.forEach(outfit => { %>
+            <div class="outfit">
+              <div class="outfit-image-container">
+                <img src="<%= outfit.imageUrl %>" alt="Outfit">
+              </div>
+              <div class="outfit-stats">
+                <span class="vote-count fire-votes">
+                  <i class="fas fa-fire"></i> <%= outfit.fireVotes || 0 %>
+                </span>
+                <span class="vote-count nope-votes">
+                  <i class="fas fa-ban"></i> <%= outfit.nopeVotes || 0 %>
+                </span>
+              </div>
+            </div>
+          <% }) %>
+        </div>
         
-        <div class="upload-section">
+        <div class="upload-section" style="margin-top: 30px;">
+          <h3>Upload Another Fit</h3>
           <form action="/upload" method="POST" enctype="multipart/form-data">
             <div class="file-input-container">
               <label for="fitImage" class="file-input-label">
@@ -183,19 +210,28 @@
               <i class="fas fa-upload"></i> Upload Your Fit
             </button>
           </form>
+        </div>
+      <% } else { %>
+        <div class="empty-uploads">
+          <i class="fas fa-cloud-upload-alt"></i>
+          <h3>No fits uploaded yet</h3>
+          <p>Share your style with the world and get feedback!</p>
           
-          <% if (typeof msg !== 'undefined' && msg) { %>
-            <p class="message <%= msg.includes('success') ? 'success' : 'error' %>">
-              <%= msg %>
-            </p>
-          <% } %>
-          
-          <% if (typeof file !== 'undefined' && file) { %>
-            <div>
-              <h3>Preview:</h3>
-              <img src="<%= file %>" alt="Uploaded Fit" class="preview-img">
-            </div>
-          <% } %>
+          <div class="upload-section">
+            <form action="/upload" method="POST" enctype="multipart/form-data">
+              <div class="file-input-container">
+                <label for="fitImage" class="file-input-label">
+                  <i class="fas fa-cloud-upload-alt"></i>
+                  <span>Drag your image here or click to browse</span>
+                </label>
+                <input type="file" id="fitImage" name="fitImage" accept="image/*" required>
+              </div>
+              <button type="submit" class="submit-btn">
+                <i class="fas fa-upload"></i> Upload Your Fit
+              </button>
+            </form>
+          </div>
+      <% } %>
         </div>
       </div>
     </div>

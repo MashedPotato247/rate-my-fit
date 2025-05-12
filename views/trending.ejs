@@ -12,14 +12,21 @@
   <div class="navbar">
   <a href="/" class="logo">🔥 RateMyFit</a>
   <div class="nav-links">
-    <a href="/">Home</a>
-    <a href="/trending">Trending</a>
-    <% if (user) { %>
-      <a href="/dashboard">Dashboard</a>
-      <a href="/logout">Logout</a>
-    <% } else { %>
-      <a href="/login">Login</a>
-    <% } %>
+    <div class="menu-circle">
+      <button id="menu-toggle" class="menu-btn">
+        <i class="fas fa-bars"></i>
+      </button>
+      <div class="menu-options">
+        <a href="/">Home</a>
+        <a href="/trending">Trending</a>
+        <% if (user) { %>
+          <a href="/dashboard">Dashboard</a>
+          <a href="/logout">Logout</a>
+        <% } else { %>
+          <a href="/login">Login</a>
+        <% } %>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -67,5 +74,6 @@
   <footer>
     Made with ❤️ by Anush. Let's make it to America! 🇺🇸
   </footer>
+  <script src="/js/navbar.js"></script>
 </body>
 </html>
