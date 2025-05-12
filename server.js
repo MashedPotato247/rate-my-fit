@@ -248,12 +248,31 @@ app.get('/', (req, res) => {
 
 // Dashboard Route
 app.get('/dashboard', checkAuth, async (req, res) => {
+  // Ensure userId is defined before usage
+  const userId = req.session?.user?.uid || "guest";
+
   // User will be available in req.session.user
   const user = req.session.user || req.user;
   
   try {
+    console.log('Dashboard - User:', user ? user.email : 'User not available');
+    
+    // Check if user has valid email
+    if (!user || !user.email) {
+      console.error('Dashboard - No valid user email available');
+      return res.render('dashboard', {
+        user, 
+        uploads: [],
+        totalUploads: 0,
+        totalFireVotes: 0,
+        profileViews: 0,
+        error: 'Invalid user session. Please log in again.'
+      });
+    }
+    
     // First, find the user document to get the correct Firestore ID
     const userCollection = firebaseAdmin.firestore().collection('users');
+    console.log('Dashboard - Querying for user with email:', user.email);
     const userQuery = await userCollection.where('email', '==', user.email).get();
     
     if (userQuery.empty) {
@@ -273,33 +292,114 @@ app.get('/dashboard', checkAuth, async (req, res) => {
     console.log('Found user ID for dashboard:', userId);
     
     // Get user's uploads
-    const uploadsQuery = await firebaseAdmin.firestore()
+    console.log('Querying uploads for user ID:', userId);
+    
+    // Debug: Check what outfits exist in the collection
+    const allOutfitsQuery = await firebaseAdmin.firestore()
       .collection('outfits')
-      .where('userId', '==', userId)
-      .orderBy('uploadedAt', 'desc')
       .get();
-    
-    const uploads = uploadsQuery.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    
-    // Calculate total fire votes received
-    const totalFireVotes = uploads.reduce((total, outfit) => total + (outfit.fireVotes || 0), 0);
-    
-    // Get message from query params if exists
-    const msg = req.query.msg || null;
-    
-    res.render('dashboard', { 
-      user,
-      uploads,
-      totalUploads: uploads.length,
-      totalFireVotes,
-      profileViews: 0, // For future implementation
-      msg
+    console.log('DEBUG: Total outfits in collection:', allOutfitsQuery.size);
+    allOutfitsQuery.docs.forEach(doc => {
+      const data = doc.data();
+      console.log('DEBUG: Outfit in collection:', { id: doc.id, userId: data.userId, imageUrl: data.imageUrl });
     });
+    
+    try {
+      const uploadsQuery = await firebaseAdmin.firestore()
+        .collection('outfits')
+        .where('userId', '==', userId)
+        .orderBy('uploadedAt', 'desc')
+        .get();
+      
+      console.log('Upload query returned:', uploadsQuery.size, 'documents');
+      
+      const uploads = uploadsQuery.docs.map(doc => {
+        const data = doc.data();
+        console.log('Outfit data:', { id: doc.id, userId: data.userId, imageUrl: data.imageUrl });
+        return {
+          id: doc.id,
+          ...data
+        };
+      });
+      
+      // Calculate total fire votes received
+      const totalFireVotes = uploads.reduce((total, outfit) => total + (outfit.fireVotes || 0), 0);
+    
+      // Get message from query params if exists
+      const msg = req.query.msg || null;
+      
+      res.render('dashboard', { 
+        user,
+        uploads,
+        totalUploads: uploads.length,
+        totalFireVotes,
+        profileViews: 0, // For future implementation
+        msg
+      });
+    } catch (error) {
+      console.error('Error in inner try block:', error);
+      throw error; // Throw to outer catch block
+    }
   } catch (error) {
     console.error('Error fetching dashboard data:', error);
+    console.error('Error details:', error.message);
+    console.error('Error stack:', error.stack);
+    
+    // Make sure we still have userId from the outer scope
+    if (!userId && user && user.email) {
+      try {
+        console.log('Trying to recover userId in catch block for:', user.email);
+        const userQueryInCatch = await firebaseAdmin.firestore().collection('users').where('email', '==', user.email).get();
+        if (!userQueryInCatch.empty) {
+          userId = userQueryInCatch.docs[0].id;
+          console.log('Recovered userId in catch block:', userId);
+        }
+      } catch (err) {
+        console.error('Failed to recover userId in catch block:', err);
+      }
+    }
+    
+    if (!userId) {
+      return res.render('dashboard', { 
+        user, 
+        uploads: [],
+        totalUploads: 0,
+        totalFireVotes: 0,
+        profileViews: 0,
+        error: 'Could not identify your user account'
+      });
+    }
+    
+    // Try to get at least some uploads without the ordering
+    try {
+      const simpleQuery = await firebaseAdmin.firestore()
+        .collection('outfits')
+        .where('userId', '==', userId)
+        .get();
+      
+      console.log('Simple query returned:', simpleQuery.size, 'documents');
+      
+      if (simpleQuery.size > 0) {
+        const uploads = simpleQuery.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        const totalFireVotes = uploads.reduce((total, outfit) => total + (outfit.fireVotes || 0), 0);
+        
+        return res.render('dashboard', {
+          user,
+          uploads,
+          totalUploads: uploads.length,
+          totalFireVotes,
+          profileViews: 0,
+          msg: 'Some data loaded with limited functionality'
+        });
+      }
+    } catch (fallbackError) {
+      console.error('Fallback query also failed:', fallbackError);
+    }
+    
     res.render('dashboard', { 
       user, 
       uploads: [],
