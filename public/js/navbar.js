@@ -1,8 +1,10 @@
-document.addEventListener("DOMContentLoaded", () => {
-  const menuToggle = document.getElementById("menu-toggle");
-  const menuCircle = document.querySelector(".menu-circle");
+  document.addEventListener("DOMContentLoaded", function() {
+  var menuToggle = document.getElementById("menu-toggle");
+  var menuCircle = document.querySelector(".menu-circle");
 
-  menuToggle.addEventListener("click", () => {
-    menuCircle.classList.toggle("active");
-  });
+  if(menuToggle) {
+    menuToggle.onclick = function() {
+      menuCircle.classList.toggle("active");
+    };
+  }
 });

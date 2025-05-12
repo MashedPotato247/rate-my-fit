@@ -1,112 +1,95 @@
-/**
- * Theme switching functionality for RateMyFit login page
- * Allows users to select from multiple color themes
- */
-
-const themes = [
+        var themes = [
     {
         background: "#1A1A2E",
         color: "#FFFFFF",
-        primaryColor: "#ff4d4d"  // Default - your app's original accent color
+        primaryColor: "#ff4d4d"
     },
     {
         background: "#461220", 
         color: "#FFFFFF",
-        primaryColor: "#E94560"  // Red theme
+        primaryColor: "#E94560"
     },
     {
         background: "#192A51",
         color: "#FFFFFF",
-        primaryColor: "#967AA1"  // Blue theme
+        primaryColor: "#967AA1"
     },
     {
         background: "#F7B267",
         color: "#000000",
-        primaryColor: "#F4845F"  // Orange theme
+        primaryColor: "#F4845F"
     }
 ];
 
-// Function to set theme variables
-const setTheme = (theme) => {
-    const root = document.querySelector(":root");
+function setTheme(theme) {
+    let root = document.querySelector(":root");
     root.style.setProperty("--background", theme.background);
     root.style.setProperty("--color", theme.color);
     root.style.setProperty("--primary-color", theme.primaryColor);
     
-    // Apply background gradient
     document.body.style.background = theme.background;
     document.body.style.backgroundImage = `linear-gradient(135deg, ${theme.background}, #121212)`;
     
-    // Store the selected theme in local storage
     localStorage.setItem('rateMyFitTheme', JSON.stringify(theme));
     
-    // Update circles with the new primary color
-    document.querySelectorAll('.circle').forEach(circle => {
-        circle.style.backgroundColor = theme.primaryColor;
-    });
+    let circles = document.querySelectorAll('.circle');
+    for (let i = 0; i < circles.length; i++) {
+        circles[i].style.backgroundColor = theme.primaryColor;
+    }
     
-    // Update form background based on theme
-    document.querySelector('.form-container').style.backgroundColor = 
-        theme.background === "#1A1A2E" ? 'rgba(30, 30, 46, 0.5)' : 'rgba(0, 0, 0, 0.2)';
+    let formBgColor = theme.background === "#1A1A2E" ? 'rgba(30, 30, 46, 0.5)' : 'rgba(0, 0, 0, 0.2)';
+    document.querySelector('.form-container').style.backgroundColor = formBgColor;
 };
 
-// Function to create theme selector buttons
-const displayThemeButtons = () => {
-    const btnContainer = document.querySelector(".theme-btn-container");
-    if (!btnContainer) return; // Safety check
+function displayThemeButtons() {
+    let btnContainer = document.querySelector(".theme-btn-container");
+    if (!btnContainer) return;
     
-    // Clear existing buttons if any
     btnContainer.innerHTML = '';
     
-    themes.forEach((theme, index) => {
-        const div = document.createElement("div");
+    for (let i = 0; i < themes.length; i++) {
+        let theme = themes[i];
+        let div = document.createElement("div");
         div.className = "theme-btn";
         div.style.background = theme.background;
         
-        // Mark first theme as active by default
-        if (index === 0) {
+        if (i === 0) {
             div.classList.add('active');
         }
         
         btnContainer.appendChild(div);
         
-        div.addEventListener("click", () => {
-            // Remove active class from all buttons
-            document.querySelectorAll('.theme-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
+        div.addEventListener("click", function() {
+            let buttons = document.querySelectorAll('.theme-btn');
+            for (let j = 0; j < buttons.length; j++) {
+                buttons[j].classList.remove('active');
+            }
             
-            // Add active class to clicked button
             div.classList.add('active');
             setTheme(theme);
         });
-    });
-};
+    }
+}
 
-// Check for saved theme in local storage
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", function() {
     displayThemeButtons();
     
-    // Apply saved theme if it exists
-    const savedTheme = localStorage.getItem('rateMyFitTheme');
+    let savedTheme = localStorage.getItem('rateMyFitTheme');
     if (savedTheme) {
         setTheme(JSON.parse(savedTheme));
     } else {
-        // Otherwise use default theme (first one)
         setTheme(themes[0]);
     }
     
-    // Set body class
     document.body.classList.add('login-page');
     
-    // Add a subtle animation to the form container
-    const formContainer = document.querySelector('.form-container');
+    let formContainer = document.querySelector('.form-container');
     if (formContainer) {
         formContainer.style.opacity = '0';
         formContainer.style.transform = 'translateY(20px)';
         formContainer.style.transition = 'opacity 0.6s ease, transform 0.8s ease';
         
-        setTimeout(() => {
+        setTimeout(function() {
             formContainer.style.opacity = '1';
             formContainer.style.transform = 'translateY(0)';
         }, 200);

@@ -1,51 +1,44 @@
-require('dotenv').config(); // Load environment variables
+require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
 const session = require('express-session');
-const bcrypt = require('bcrypt'); // For password hashing
-const fs = require('fs'); // File system module
+const bcrypt = require('bcrypt');
+const fs = require('fs');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const GitHubStrategy = require('passport-github2').Strategy;
-const firebaseAdmin = require('firebase-admin'); // Firebase Admin SDK
+const firebaseAdmin = require('firebase-admin');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Initialize Firebase Admin SDK
 firebaseAdmin.initializeApp({
   credential: firebaseAdmin.credential.applicationDefault(),
   databaseURL: process.env.FIREBASE_DATABASE_URL
 });
 
-// Create data directory if it doesn't exist
 const dataDir = path.join(__dirname, 'data');
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir);
 }
 
-// Initialize session middleware
 app.use(session({
   secret: process.env.SESSION_SECRET || 'a3f8c9e7d6b5a4f3c2e1d0f9b8a7c6d5e4f3a2b1c0d9e8', 
   resave: false,
   saveUninitialized: true,
-  cookie: { secure: process.env.NODE_ENV === 'production' } // Using secure cookies in production
+  cookie: { secure: process.env.NODE_ENV === 'production' }
 }));
 
-// Initialize Passport for social login
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Middleware to make `user` available in all views
 app.use((req, res, next) => {
   res.locals.user = req.session.user || req.user || null;
   next();
 });
 
-// Passport serialize/deserialize
 passport.serializeUser((user, done) => {
-  // Serialize the user's unique identifier (e.g., googleId or email)
   done(null, user.googleId || user.email);
 });
 
@@ -54,11 +47,9 @@ passport.deserializeUser(async (identifier, done) => {
     const userRef = firebaseAdmin.firestore().collection('users');
     let userSnapshot;
 
-    // Try to find the user by googleId first
     userSnapshot = await userRef.where('googleId', '==', identifier).get();
 
     if (userSnapshot.empty) {
-      // If not found, try to find the user by email
       userSnapshot = await userRef.where('email', '==', identifier).get();
     }
 
@@ -72,7 +63,6 @@ passport.deserializeUser(async (identifier, done) => {
   }
 });
 
-// Configure Google Strategy
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
@@ -80,26 +70,20 @@ passport.use(new GoogleStrategy({
   },
   async (accessToken, refreshToken, profile, done) => {
     try {
-      // Use Firebase to find or create user
       const userRef = firebaseAdmin.firestore().collection('users');
       let userSnapshot = await userRef.where('googleId', '==', profile.id).get();
 
       let user;
       if (!userSnapshot.empty) {
-        // User exists
         user = userSnapshot.docs[0].data();
       } else {
-        // Check by email
         userSnapshot = await userRef.where('email', '==', profile.emails[0].value).get();
         if (!userSnapshot.empty) {
-          // Link Google account to existing user
           user = userSnapshot.docs[0].data();
           await userRef.doc(userSnapshot.docs[0].id).update({
             googleId: profile.id
           });
         } else {
-          // Create new user
-          // Generate username based on email (removing special chars)
           const baseUsername = profile.emails[0].value.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
           const username = baseUsername + Math.floor(1000 + Math.random() * 9000);
           
@@ -170,13 +154,11 @@ passport.use(new GitHubStrategy({
   }
 ));
 
-// Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, 'public', 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Set Storage Engine for Multer
 const storage = multer.diskStorage({
   destination: './public/uploads/',
   filename: (req, file, cb) => {
@@ -184,10 +166,9 @@ const storage = multer.diskStorage({
   }
 });
 
-// Init Upload
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 10000000 }, // 10MB limit
+  limits: { fileSize: 10000000 }, 
   fileFilter: (req, file, cb) => {
     const filetypes = /jpeg|jpg|png|gif/;
     const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
@@ -211,53 +192,47 @@ app.set('view engine', 'ejs');
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// Auth Middleware
+// Auth check
 function checkAuth(req, res, next) {
-  // Check both authentication methods:
-  // 1. Session-based (traditional login)
-  // 2. Passport-based (social login)
-  if (req.session.user || req.isAuthenticated()) {
-    // If authenticated via Passport but no session, set session for consistency
-    if (req.isAuthenticated() && !req.session.user) {
-      req.session.user = req.user;
-    }
-    
-    // If new user without username, direct to complete-profile
-    const user = req.session.user || req.user;
-    if (user && user.isNewUser === true) {
-      return res.redirect('/complete-profile');
-    }
-    
-    return next();
+  if (!req.session.user && !req.isAuthenticated()) {
+    // Not logged in, redirect to login page
+    return res.redirect('/login');
   }
-  res.redirect('/login');
+  
+  // Sync passport user with session if needed
+  if (req.isAuthenticated() && !req.session.user) {
+    req.session.user = req.user;
+  }
+  
+  // Check if profile completion is required
+  let currentUser = req.session.user || req.user;
+  if (currentUser && currentUser.isNewUser) {
+    return res.redirect('/complete-profile');
+  }
+  
+  // User is authenticated and profile is complete
+  next();
 }
 
-// Login routes
-app.get('/login', (req, res) => {
-  const { message, error } = req.query;
+// Home and login routes
+app.get('/', function(req, res) {
+  var msg = req.query.msg || null;
+  res.render('index', { msg, file: null });
+});
+
+app.get('/login', function(req, res) {
+  var message = req.query.message;
+  var error = req.query.error;
   res.render('login', { message, error });
 });
 
-// Routes
-// Ensure 'msg' is defined and passed to the template
-app.get('/', (req, res) => {
-  const msg = req.query.msg || null; // Retrieve 'msg' from query parameters or set to null
-  res.render('index', { msg, file: null }); // Pass 'msg' to the template, user comes from middleware
-});
-
-// Dashboard Route
 app.get('/dashboard', checkAuth, async (req, res) => {
-  // Ensure userId is defined before usage
   const userId = req.session?.user?.uid || "guest";
-
-  // User will be available in req.session.user
   const user = req.session.user || req.user;
   
   try {
     console.log('Dashboard - User:', user ? user.email : 'User not available');
     
-    // Check if user has valid email
     if (!user || !user.email) {
       console.error('Dashboard - No valid user email available');
       return res.render('dashboard', {
@@ -411,12 +386,10 @@ app.get('/dashboard', checkAuth, async (req, res) => {
   }
 });
 
-// Profile Route
 app.get('/profile', checkAuth, async (req, res) => {
   const sessionUser = req.session.user || req.user;
   
   try {
-    // Fetch latest user data from Firestore
     const userCollection = firebaseAdmin.firestore().collection('users');
     const userQuery = await userCollection.where('email', '==', sessionUser.email).get();
     
@@ -427,15 +400,12 @@ app.get('/profile', checkAuth, async (req, res) => {
       });
     }
     
-    // Get the user document
     const userDoc = userQuery.docs[0];
     const userData = userDoc.data();
     
-    // Combine the user data with document ID
     const user = { 
       id: userDoc.id, 
       ...userData,
-      // Ensure backwards compatibility with different field names
       photoURL: userData.photoURL || userData.avatar,
       displayName: userData.displayName || userData.name,
       username: userData.username || userData.email.split('@')[0],
@@ -531,9 +501,7 @@ app.post('/profile', checkAuth, async (req, res) => {
   }
 });
 
-// Logout Route
 app.get('/logout', (req, res) => {
-  // Clear session and passport logout
   req.session.destroy(() => {
     req.logout(function(err) {
       if (err) { 
@@ -543,19 +511,19 @@ app.get('/logout', (req, res) => {
     });
   });
 });
-
-// Protect the upload route
 app.post('/upload', checkAuth, upload, async (req, res) => {
+  // Quick check if file exists
   if (!req.file) {
     return res.render('index', { msg: 'No file uploaded!', file: null });
   }
   
   try {
-    const user = req.session.user || req.user;
+    // Get current user
+    var user = req.session.user || req.user;
     
-    // First, find the user document to get the correct Firestore ID
-    const userCollection = firebaseAdmin.firestore().collection('users');
-    const userQuery = await userCollection.where('email', '==', user.email).get();
+    // Find the user in Firebase
+    var userCollection = firebaseAdmin.firestore().collection('users');
+    var userQuery = await userCollection.where('email', '==', user.email).get();
     
     if (userQuery.empty) {
       console.error('User not found in Firestore when uploading:', user.email);
@@ -565,13 +533,12 @@ app.post('/upload', checkAuth, upload, async (req, res) => {
       });
     }
     
-    // Get the user document ID from Firestore
-    const userDocId = userQuery.docs[0].id;
+    var userDocId = userQuery.docs[0].id;
     console.log('Found user ID for upload:', userDocId);
     
-    // Create a new outfit document in Firestore
-    const outfitData = {
-      userId: userDocId, // Use the consistent Firestore document ID
+    // Prepare outfit data for Firebase
+    var outfitData = {
+      userId: userDocId,
       username: user.username || user.email.split('@')[0],
       imageUrl: `/uploads/${req.file.filename}`,
       fireVotes: 0,
@@ -581,7 +548,6 @@ app.post('/upload', checkAuth, upload, async (req, res) => {
     
     console.log('Saving outfit with user ID:', outfitData.userId);
     
-    // Add to Firestore
     await firebaseAdmin.firestore().collection('outfits').add(outfitData);
     
     // Redirect to the dashboard instead of just rendering
@@ -745,7 +711,6 @@ app.post('/vote', checkAuth, async (req, res) => {
       return res.redirect('/trending?error=Outfit+not+found');
     }
     
-    // Update the appropriate vote count
     if (voteType === 'fire') {
       await outfitRef.update({
         fireVotes: firebaseAdmin.firestore.FieldValue.increment(1)
@@ -763,5 +728,4 @@ app.post('/vote', checkAuth, async (req, res) => {
   }
 });
 
-// Start Server
 app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));

@@ -1,11 +1,3 @@
-/**
- * Rate My Fit Authentication Test Script
- * 
- * This script helps you test the authentication flows for both traditional and social login.
- * Follow the instructions below to test the various login methods.
- */
-
-console.log('=== AUTHENTICATION TESTING GUIDE ===');
 console.log('');
 
 console.log('1. TRADITIONAL LOGIN TESTING');
