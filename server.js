@@ -54,7 +54,10 @@ passport.deserializeUser(async (identifier, done) => {
     }
 
     if (!userSnapshot.empty) {
-      done(null, userSnapshot.docs[0].data());
+      const userDoc = userSnapshot.docs[0];
+      const userData = userDoc.data();
+      userData.id = userDoc.id; // Add the document ID to the user object
+      done(null, userData);
     } else {
       done(new Error('User not found'), null);
     }
@@ -605,43 +608,53 @@ app.post('/complete-profile', async (req, res) => {
   if (!req.isAuthenticated()) {
     return res.redirect('/login');
   }
-  
+
   const { username, displayName } = req.body;
-  
+
   try {
     const userRef = firebaseAdmin.firestore().collection('users');
+
+    // Check if req.user.id exists
+    if (!req.user.id) {
+      console.error('User ID is missing in the request.');
+      return res.render('complete-profile', {
+        user: req.user,
+        error: 'User ID is missing. Please log in again.'
+      });
+    }
+
     const userSnapshot = await userRef.where('username', '==', username).get();
-    
+
     if (!userSnapshot.empty && userSnapshot.docs[0].id !== req.user.id) {
       return res.render('complete-profile', { 
         user: req.user, 
         error: 'Username already taken' 
       });
     }
-    
+
     const userDocRef = userRef.doc(req.user.id);
     const userDoc = await userDocRef.get();
-    
+
     if (!userDoc.exists) {
       return res.render('complete-profile', { 
         user: req.user, 
         error: 'User not found' 
       });
     }
-    
+
     // Update username, displayName and remove isNewUser flag
     await userDocRef.update({
       username,
       displayName: displayName || username,
       isNewUser: false
     });
-    
+
     // Update session and passport user
     req.user.username = username;
     req.user.displayName = displayName || username;
     req.user.isNewUser = false;
     req.session.user = req.user;
-    
+
     res.redirect('/dashboard');
   } catch (error) {
     console.error('Complete profile error:', error);
