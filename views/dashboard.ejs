@@ -133,7 +133,16 @@
     <div class="user-details">
       <div class="user-header">
         <div class="user-avatar">
-          <% let userInitial = (user.displayName || user.username || user.email.charAt(0)).toUpperCase(); %>
+          <% let userInitial = "";
+          if (user.displayName) {
+            const names = user.displayName.split(" ");
+            userInitial = names.map(name => name.charAt(0)).join("").toUpperCase();
+          } else if (user.username) {
+            const names = user.username.split(" ");
+            userInitial = names.map(name => name.charAt(0)).join("").toUpperCase();
+          } else {
+            userInitial = user.email.charAt(0).toUpperCase();
+          } %>
           <%= userInitial %>
         </div>
         <div class="user-name-email">
