@@ -162,6 +162,12 @@
   </section>
   
   <script src="/js/login.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.8/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.8/firebase-auth-compat.js"></script>
+  <script>
+    // Your Firebase configuration
+    const firebaseConfig = {
+      apiKey: "<%= process.env.FIREBASE_API_KEY || '' %>",
       authDomain: "rate-my-fit-bf625.firebaseapp.com",
       projectId: "rate-my-fit-bf625",
       storageBucket: "rate-my-fit-bf625.appspot.com",

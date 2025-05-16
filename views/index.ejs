@@ -5,23 +5,65 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Rate My Fit</title>
   <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/sidebar.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
   <div class="navbar">
-  <a href="/" class="logo">🔥 RateMyFit</a>
-  <div class="nav-links">
-    <a href="/">Home</a>
-    <a href="/trending">Trending</a>
-    <% if (user) { %>
-      <a href="/dashboard">Dashboard</a>
-      <a href="/logout">Logout</a>
-      <a href="/profile">Your Profile</a>
-    <% } else { %>
-      <a href="/login">Login</a>
-    <% } %>
+  <div class="nav-left">
+    <a href="/" class="logo">🔥 RateMyFit</a>
+  </div>
+  <div class="nav-right">
+    <button id="sidebar-toggle" class="menu-btn">
+      <i class="fas fa-bars"></i>
+    </button>
   </div>
 </div>
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <h2>🔥 RateMyFit</h2>
+  </div>
+  <div class="sidebar-links">
+    <a href="/" class="<%= locals.currentPath === '/' ? 'active' : '' %>">
+      <i class="fas fa-home"></i> Home
+    </a>
+    <a href="/trending" class="<%= locals.currentPath === '/trending' ? 'active' : '' %>">
+      <i class="fas fa-fire"></i> Trending
+    </a>
+    <% if (user) { %>
+      <a href="/dashboard" class="<%= locals.currentPath === '/dashboard' ? 'active' : '' %>">
+        <i class="fas fa-tachometer-alt"></i> Dashboard
+      </a>
+      <a href="/profile" class="<%= locals.currentPath === '/profile' ? 'active' : '' %>">
+        <i class="fas fa-user"></i> Profile
+      </a>
+      <a href="/logout">
+        <i class="fas fa-sign-out-alt"></i> Logout
+      </a>
+    <% } else { %>
+      <a href="/login">
+        <i class="fas fa-sign-in-alt"></i> Login
+      </a>
+      <a href="/register">
+        <i class="fas fa-user-plus"></i> Register
+      </a>
+    <% } %>
+  </div>
+  <% if (user) { %>
+    <div class="user-info">
+      <div class="user-name"><%= user.username %></div>
+      <div class="user-status">🟢 Online</div>
+    </div>
+  <% } %>
+  <div class="sidebar-footer">
+    Made with ❤️ by Anush
+  </div>
+</div>
+
+<!-- Overlay -->
+<div class="overlay" id="overlay"></div>
 
   <div class="container">
     <h1>Rate My Fit</h1>

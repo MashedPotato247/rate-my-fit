@@ -35,6 +35,7 @@ app.use(passport.session());
 
 app.use((req, res, next) => {
   res.locals.user = req.session.user || req.user || null;
+  res.locals.currentPath = req.path; // Add current path to all routes
   next();
 });
 
@@ -217,10 +218,9 @@ function checkAuth(req, res, next) {
   next();
 }
 
-// Home and login routes
+// Update the home route to redirect to /dashboard
 app.get('/', function(req, res) {
-  var msg = req.query.msg || null;
-  res.render('index', { msg, file: null });
+  res.redirect('/dashboard');
 });
 
 app.get('/login', function(req, res) {
@@ -697,7 +697,8 @@ app.get('/trending', async (req, res) => {
       user: req.session.user || req.user, 
       userId,
       msg,
-      error
+      error,
+      currentPath: '/trending'
     });
   } catch (error) {
     console.error('Error fetching trending outfits:', error);

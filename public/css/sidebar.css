@@ -1,0 +1,215 @@
+/* Sidebar Styles for RateMyFit */
+:root {
+  --bg-primary: #121212;
+  --bg-secondary: linear-gradient(180deg, #2a2a2a 0%, #1e1e1e 100%); /* Updated */
+  --accent: #ff4d4d;
+  --accent-hover: #ff6b6b;
+  --text-primary: #ffffff;
+  --text-secondary: #b3b3b3;
+  --card-bg: #252525;
+  --card-border: #333333;
+  --sidebar-width: 280px;
+}
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  right: -280px; /* Initial state: hidden off-screen */
+  width: var(--sidebar-width);
+  height: 100vh;
+  background: var(--bg-secondary);
+  z-index: 1000;
+  box-shadow: -2px 0 15px rgba(0, 0, 0, 0.2);
+  transition: right 0.3s ease;
+  padding-top: 20px;
+  border-left: 1px solid var(--card-border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar.active {
+  right: 0;
+}
+
+.sidebar-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--card-border);
+  margin-bottom: 12px;
+  display: flex; /* Added for alignment */
+  align-items: center; /* Added for alignment */
+}
+
+.sidebar-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-grow: 1; /* Allow title to take space */
+}
+
+.sidebar-links {
+  display: flex;
+  flex-direction: column;
+  padding: 0 10px;
+  margin-top: 10px; /* Added margin */
+}
+
+.sidebar-links a {
+  padding: 10px 16px; /* Adjusted padding */
+  border-radius: 6px;
+  margin: 4px 0; /* Adjusted margin */
+  font-weight: 500;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.sidebar-links a:hover {
+  background: rgba(255, 255, 255, 0.08); /* Slightly more visible hover */
+  color: var(--text-primary); /* Ensure text color remains bright on hover */
+}
+
+.sidebar-links a.active {
+  background: rgba(255, 77, 77, 0.15); /* More prominent active background */
+  color: var(--accent);
+  font-weight: 700; /* Bolder active link */
+  border-left: 3px solid var(--accent); /* Accent border for active link */
+  padding-left: 13px; /* Adjust padding to account for border */
+}
+
+.sidebar-links i {
+  width: 20px; /* Slightly larger icon area */
+  text-align: center;
+  font-size: 1rem; /* Slightly larger icons */
+  margin-right: 5px; /* Added margin for better spacing with text */
+}
+
+.menu-btn {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 8px;
+  transition: color 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  margin-right: 10px; /* Added margin to space it from edge */
+}
+
+.menu-btn:hover {
+  color: var(--accent);
+  background: rgba(255, 77, 77, 0.08);
+}
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.overlay.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Shift content when sidebar is open */
+/* body.sidebar-active .container {
+  margin-right: var(--sidebar-width);
+  width: calc(100% - var(--sidebar-width));
+  transition: all 0.3s ease;
+} */
+
+/* GitHub-style sidebar and content layout */
+/* body.sidebar-active .navbar {
+  margin-right: var(--sidebar-width);
+  width: calc(100% - var(--sidebar-width));
+  transition: all 0.3s ease;
+} */
+
+/* @media (max-width: 768px) {
+} */
+
+.user-info {
+  padding: 10px 0; /* Vertical padding, no horizontal padding to allow full width content */
+  margin-top: 10px;  /* Space from the main navigation links above */
+  /* Removed border-top and border-bottom to avoid separator lines */
+}
+
+.sidebar-avatar { /* Styles for the circular avatar */
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 0.9rem; /* Initials size */
+  flex-shrink: 0; /* Prevent avatar from shrinking */
+}
+
+.sidebar-user-details { /* Wrapper for avatar, name and email */
+  display: flex;
+  align-items: center;
+  gap: 12px; /* Space between avatar and text block */
+  padding: 0 16px; /* Horizontal padding to align text with other sidebar links */
+  margin-bottom: 10px; /* Space before the logout button */
+}
+
+.user-info .user-name { /* Styles for the name text inside user-info */
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.user-info .user-email { /* Styles for the email text */
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.3;
+}
+
+/* Styling for the .sidebar-links div that *only* contains the logout link, within .user-info */
+.user-info > .sidebar-links {
+  padding: 0; /* No padding on the container for the logout link */
+  margin-top: 0; /* Reset margin if any was inherited */
+}
+
+/* Styling for the logout link itself */
+.user-info > .sidebar-links > a.logout-action {
+  display: flex; 
+  align-items: center;
+  width: 100%; /* Make the link area full width */
+  box-sizing: border-box;
+  padding: 10px 16px; /* Same padding as other sidebar links for consistency */
+  /* Inherits text color, hover effects etc. from general .sidebar-links a */
+}
+
+.sidebar-footer {
+  margin-top: auto; /* Pushes footer to the bottom if sidebar has extra space */
+  padding: 15px 16px; 
+  text-align: center;
+  font-size: 0.85rem; 
+  color: var(--text-secondary);
+  border-top: none; /* Explicitly remove top border if any was there */
+}
