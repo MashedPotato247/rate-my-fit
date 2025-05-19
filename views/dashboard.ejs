@@ -5,8 +5,23 @@
   <title>Dashboard | RateMyFit</title>
   <link rel="stylesheet" href="/css/styles.css">
   <link rel="stylesheet" href="/css/sidebar.css">
+  <link rel="stylesheet" href="/css/avatar.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
+    /* Hide any debug elements */
+    [class*="debug"], [id*="debug"],
+    [class*="Debug"], [id*="Debug"],
+    [debug], [data-debug],
+    *[class*="-debug-"], *[id*="-debug-"] {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      position: absolute !important;
+      left: -9999px !important;
+      top: -9999px !important;
+      pointer-events: none !important;
+    }
+    
     .dashboard-stats {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -112,18 +127,26 @@
     }
     
     .sidebar-footer {
-      margin-top: 20px;
+      margin-top: 20px; /* This will be overridden by sidebar.css, but good to keep consistent or remove if only in sidebar.css */
       padding: 10px;
       text-align: center;
       font-size: 0.9rem;
       color: var(--text-secondary);
     }
     
-    .sidebar-separator {
-      border: 0;
-      height: 1px;
-      background: var(--card-border);
-      margin: 10px 0;
+    /* Fix for avatar display */
+    .user-avatar {
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .user-avatar .avatar-image {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
   </style>
 </head>
@@ -151,44 +174,39 @@
     <!-- Add more links as needed -->
   </div>
   <% if (user) { %>
-    <hr class="sidebar-separator"> <!-- Added separator -->
-    <div class="user-info">
-      <% if (user) { %>
-        <div class="sidebar-user-details">
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <a href="/profile" class="sidebar-user-details">
           <div class="sidebar-avatar">
-            <% 
-            let sidebarInitial = "";
-            if (user.displayName) {
-              const sidebarNames = user.displayName.split(' ');
-              sidebarInitial = sidebarNames.map(n => n[0]).join('').substring(0,2).toUpperCase();
-            } else if (user.username) {
-              sidebarInitial = user.username.substring(0,1).toUpperCase();
-            } else if (user.email) {
-              sidebarInitial = user.email.substring(0,1).toUpperCase();
-            } 
-            %>
-            <%= sidebarInitial %>
+            <% if (user.photoURL && user.photoURL !== 'NO_AVATAR_SET') { %>
+              <img src="<%= user.photoURL %>" alt="<%= user.displayName || user.email %>" class="avatar-image">
+            <% } else { %>
+              <div class="avatar-initials"><%= (user.displayName || user.email || 'U').charAt(0).toUpperCase() %></div>
+            <% } %>
           </div>
-          <div>
-            <p class="user-name"><%= user.displayName || user.username || 'User' %></p>
-            <p class="user-email"><%= user.email || '' %></p>
+          <div class="user-details-text">
+            <div class="user-name"><%= user.displayName || (user.email ? user.email.split('@')[0] : 'User') %></div>
+            <% if (user.displayName && user.email) { %>
+              <div class="user-email"><%= user.email %></div>
+            <% } %>
           </div>
-        </div>
-        <div class="sidebar-links"> <!-- Logout link separate or styled differently -->
-          <a href="/logout" class="logout-action"><i class="fas fa-sign-out-alt"></i> Logout</a>
-        </div>
-        <hr class="sidebar-separator"> <!-- Added separator -->
-      <% } %>
+        </a>
+        <a href="/profile/settings" class="sidebar-settings-icon" aria-label="Settings">
+          <i class="fas fa-cog"></i>
+        </a>
+      </div>
+      <div class="sidebar-links">
+        <a href="/logout" class="logout-link">
+          <i class="fas fa-sign-out-alt"></i> Logout
+        </a>
+      </div>
     </div>
   <% } else { %>
     <div class="sidebar-links">
-        <a href="/login"><i class="fas fa-sign-in-alt"></i> Login</a>
-        <a href="/register"><i class="fas fa-user-plus"></i> Register</a>
+      <a href="/login" class="<%= currentPath === '/login' ? 'active' : '' %>"><i class="fas fa-sign-in-alt"></i> Login</a>
+      <a href="/register" class="<%= currentPath === '/register' ? 'active' : '' %>"><i class="fas fa-user-plus"></i> Register</a>
     </div>
   <% } %>
-  <div class="sidebar-footer">
-    RateMyFit &copy; 2024
-  </div>
 </div>
 
 <!-- Overlay -->
@@ -202,20 +220,29 @@
       <div class="user-header">
         <div class="user-avatar">
           <% 
-          let userInitial = "";
-          if (user && user.displayName) {
-            const namesArray = user.displayName.split(' ');
-            userInitial = namesArray.map(name => name.charAt(0)).join('').toUpperCase();
-          } else if (user && user.username) {
-            const namesArray = user.username.split(' '); // Assuming username might also contain spaces
-            userInitial = namesArray.map(name => name.charAt(0)).join('').toUpperCase();
-          } else if (user && user.email) {
-            userInitial = user.email.charAt(0).toUpperCase();
-          } else {
-            userInitial = "U"; // Default initial if no user info
-          } 
+            // Handle user initials for fallback
+            let userInitial = "U";
+            if (user && user.displayName) {
+              const namesArray = user.displayName.split(' ');
+              userInitial = namesArray.map(name => name.charAt(0)).join('').toUpperCase();
+            } else if (user && user.username) {
+              const namesArray = user.username.split(' ');
+              userInitial = namesArray.map(name => name.charAt(0)).join('').toUpperCase();
+            } else if (user && user.email) {
+              userInitial = user.email.charAt(0).toUpperCase();
+            }
+            
+            // Create avatar URL with proper fallback
+            const avatarUrl = user && (user.photoURL || user.avatar) 
+              ? (user.photoURL || user.avatar) 
+              : `https://ui-avatars.com/api/?name=${encodeURIComponent(userInitial)}&background=FF4D4D&color=fff&size=200`;
           %>
-          <%= userInitial %>
+          
+          <% if (user && (user.photoURL || user.avatar)) { %>
+            <img src="<%= avatarUrl %>" alt="User Avatar" class="avatar-image">
+          <% } else { %>
+            <div class="user-initials-avatar"><%= userInitial %></div>
+          <% } %>
         </div>
         <div class="user-name-email">
           <h2 class="user-name">Welcome, <%= user ? (user.displayName || user.username || 'User') : 'User' %>!</h2>
@@ -279,6 +306,7 @@
         <div class="upload-section" style="margin-top: 30px;">
           <h3>Upload Another Fit</h3>
           <form action="/upload" method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>">
             <div class="file-input-container">
               <label for="fitImage" class="file-input-label">
                 <i class="fas fa-cloud-upload-alt"></i>
@@ -315,7 +343,18 @@
       }
     }
     
-    uploadInput.addEventListener('change', showFileName);
+    if (uploadInput) {
+      uploadInput.addEventListener('change', showFileName);
+    }
+    
+    // Remove any debug elements that might be added dynamically
+    document.addEventListener('DOMContentLoaded', function() {
+      const debugElements = document.querySelectorAll('[class*="debug"],[id*="debug"],[class*="Debug"],[id*="Debug"],[debug],[data-debug]');
+      debugElements.forEach(function(element) {
+        element.style.display = 'none';
+        element.style.visibility = 'hidden';
+      });
+    });
   </script>
 </body>
 </html>

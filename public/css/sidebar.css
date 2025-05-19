@@ -34,7 +34,7 @@
 
 .sidebar-header {
   padding: 12px 16px;
-  border-bottom: 1px solid var(--card-border);
+  /* border-bottom: 1px solid var(--card-border); */ /* Removed separator */
   margin-bottom: 12px;
   display: flex; /* Added for alignment */
   align-items: center; /* Added for alignment */
@@ -47,14 +47,11 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-grow: 1; /* Allow title to take space */
 }
 
 .sidebar-links {
-  display: flex;
-  flex-direction: column;
-  padding: 0 10px;
-  margin-top: 10px; /* Added margin */
+  padding: 0 16px; /* Add padding to align with header */
+  flex-grow: 1; /* Allow links to take available space */
 }
 
 .sidebar-links a {
@@ -164,52 +161,185 @@
   font-weight: bold;
   font-size: 0.9rem; /* Initials size */
   flex-shrink: 0; /* Prevent avatar from shrinking */
+  overflow: hidden; /* Ensure image is contained within the circle */
+}
+
+.sidebar-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%; /* Ensure image is circular if not already */
+}
+
+.sidebar-avatar.user-initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--accent);
+  color: var(--text-primary);
+  font-weight: bold;
+  font-size: 1rem; /* Adjust as needed */
 }
 
 .sidebar-user-details { /* Wrapper for avatar, name and email */
   display: flex;
   align-items: center;
-  gap: 12px; /* Space between avatar and text block */
-  padding: 0 16px; /* Horizontal padding to align text with other sidebar links */
-  margin-bottom: 10px; /* Space before the logout button */
+  padding: 12px 16px; /* Consistent padding */
+  text-decoration: none; /* Remove underline from link */
+  color: var(--text-primary); /* Ensure text color is appropriate */
+  border-radius: 8px;
+  transition: background-color 0.2s ease;
+}
+
+.sidebar-user-details:hover {
+  background-color: rgba(255, 255, 255, 0.05); /* Subtle hover effect */
+}
+
+.user-details-text {
+  margin-left: 12px;
+  text-align: left; /* Align text to the left */
+  flex-grow: 1; /* Allow text to take available space */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .user-info .user-name { /* Styles for the name text inside user-info */
-  margin: 0;
+  font-size: 0.9rem; /* Slightly smaller name */
   font-weight: 600;
-  font-size: 0.95rem;
-  color: var(--text-primary);
+  margin: 0;
   line-height: 1.3;
 }
 
-.user-info .user-email { /* Styles for the email text */
-  margin: 0;
-  font-size: 0.8rem;
+.user-info .user-email {
+  font-size: 0.8rem; /* Smaller email */
   color: var(--text-secondary);
+  margin: 2px 0 0;
   line-height: 1.3;
 }
+
+/* .user-info .user-email rule removed as it was empty */
 
 /* Styling for the .sidebar-links div that *only* contains the logout link, within .user-info */
-.user-info > .sidebar-links {
-  padding: 0; /* No padding on the container for the logout link */
-  margin-top: 0; /* Reset margin if any was inherited */
-}
+/* The entire .user-info > .sidebar-links rule is removed to eliminate the gap and separator */
 
-/* Styling for the logout link itself */
-.user-info > .sidebar-links > a.logout-action {
-  display: flex; 
-  align-items: center;
-  width: 100%; /* Make the link area full width */
-  box-sizing: border-box;
-  padding: 10px 16px; /* Same padding as other sidebar links for consistency */
-  /* Inherits text color, hover effects etc. from general .sidebar-links a */
+/* Added rule to remove gap above logout button and ensure proper layout */
+.sidebar-footer .user-info .sidebar-links {
+  margin-top: 0;    /* Remove the gap above the logout button container */
+  margin-bottom: 0; /* Footer padding will handle space below */
+  padding: 0;       /* Reset padding for this specific container */
+  width: 100%;      /* Ensure it spans width to appear underneath user details */
 }
 
 .sidebar-footer {
-  margin-top: auto; /* Pushes footer to the bottom if sidebar has extra space */
-  padding: 15px 16px; 
-  text-align: center;
-  font-size: 0.85rem; 
+  margin-top: auto; /* Pushes footer to the bottom */
+  margin-bottom: 20px; /* Add space above the taskbar */
+  padding: 10px 16px 16px 16px; /* Consistent padding, more bottom padding */
+  border-top: 1px solid var(--card-border); /* Separator line */
+  display: flex; /* Added to allow flex properties for children */
+  flex-direction: column; /* Stack children vertically */
+}
+
+.sidebar-footer .user-info {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+  width: 100%;
+}
+
+.sidebar-footer .user-info .sidebar-user-details {
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+.sidebar-footer .sidebar-links {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+.sidebar-footer .user-info .sidebar-user-details {
+  display: flex;
+  align-items: center;
+  padding: 8px 0px; /* Reduced padding as it's inside sidebar-footer already */
+  text-decoration: none;
+  color: var(--text-primary);
+  border-radius: 6px; /* Consistent border-radius */
+  transition: background-color 0.2s ease;
+  flex-grow: 1; /* Allow it to take available space */
+}
+
+.sidebar-footer .user-info .sidebar-user-details:hover {
+  background-color: rgba(255, 255, 255, 0.05); /* Subtle hover for the whole user block */
+}
+
+.sidebar-footer .user-info .sidebar-avatar {
+  margin-right: 12px; /* Increased space between avatar and text */
+  transform: translate(5px, -2px); /* Slightly more rightward offset */
+}
+
+.sidebar-footer .user-info .user-details-text {
+  flex-grow: 1; /* Allow text to take space */
+  margin-right: 10px; /* Space before settings icon */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.sidebar-footer .user-info .user-name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 0;
+  line-height: 1.3;
+  color: var(--text-primary);
+  padding-bottom: 10px;
+}
+
+.sidebar-footer .user-info .user-email {
+  font-size: 0.8rem;
   color: var(--text-secondary);
-  border-top: none; /* Explicitly remove top border if any was there */
+  margin: 2px 0 0;
+  line-height: 1.3;
+}
+
+.sidebar-footer .sidebar-settings-icon {
+  color: var(--text-secondary);
+  font-size: 1rem; /* Adjust size */
+  padding: 8px; /* Make it easier to click */
+  border-radius: 50%;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+.sidebar-footer .sidebar-settings-icon:hover {
+  color: var(--accent);
+  background-color: rgba(255, 77, 77, 0.1);
+}
+
+.sidebar-footer .sidebar-links a.logout-link {
+  display: flex; /* Use flex to align icon and text */
+  align-items: center; /* Vertically center icon and text */
+  padding: 10px 16px; /* Consistent padding */
+  border-radius: 6px;
+  margin: 4px -16px; /* Consistent margin, negative horizontal for full-width hover */
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  width: 100%; /* Make the logout button span the full width */
+  box-sizing: border-box; /* Ensure padding doesn't add to width */
+}
+
+.sidebar-footer .sidebar-links a.logout-link:hover {
+  background-color: var(--accent); /* Red accent color on hover */
+  color: var(--text-primary); /* Keep text color consistent */
+}
+
+.sidebar-footer .sidebar-links a.logout-link i {
+  margin-right: 12px; /* Space between icon and text */
+  font-size: 1rem; /* Icon size */
+  width: 20px; /* Icon container width */
+  text-align: center; /* Center icon if needed */
 }

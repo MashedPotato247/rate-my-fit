@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Server Error | Rate My Fit</title>
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .error-container {
+      text-align: center;
+      padding: 50px 20px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    
+    .error-icon {
+      font-size: 5rem;
+      margin-bottom: 20px;
+      color: var(--accent);
+      animation: shake 1s cubic-bezier(.36,.07,.19,.97) both;
+    }
+    
+    .error-title {
+      font-size: 2.5rem;
+      margin-bottom: 20px;
+    }
+    
+    .error-message {
+      font-size: 1.2rem;
+      margin-bottom: 30px;
+      opacity: 0.8;
+    }
+    
+    .error-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+    }
+    
+    .error-button {
+      background: linear-gradient(90deg, #ff4d4d, #f9cb28);
+      color: white;
+      text-decoration: none;
+      padding: 12px 25px;
+      border-radius: 50px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      transition: transform 0.3s ease;
+    }
+    
+    .error-button i {
+      margin-right: 8px;
+    }
+    
+    .error-button:hover {
+      transform: translateY(-3px);
+    }
+    
+    @keyframes shake {
+      10%, 90% { transform: translate3d(-1px, 0, 0); }
+      20%, 80% { transform: translate3d(2px, 0, 0); }
+      30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+      40%, 60% { transform: translate3d(4px, 0, 0); }
+    }
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <div class="nav-left">
+      <a href="/" class="logo">🔥 RateMyFit</a>
+    </div>
+  </div>
+  
+  <div class="container">
+    <div class="error-container">
+      <div class="error-icon">
+        <i class="fas fa-cogs"></i>
+      </div>
+      <h1 class="error-title">500 - Server Error</h1>
+      <p class="error-message">Oops! Our servers are having a fashion emergency. Please try again later.</p>
+      <div class="error-actions">
+        <a href="/" class="error-button">
+          <i class="fas fa-home"></i> Go Home
+        </a>
+        <a href="/dashboard" class="error-button">
+          <i class="fas fa-tachometer-alt"></i> Go to Dashboard
+        </a>
+      </div>
+    </div>
+  </div>
+  
+  <footer>
+    Made with ❤️ by Anush. Let's make it to America! 🇺🇸
+  </footer>
+</body>
+</html>

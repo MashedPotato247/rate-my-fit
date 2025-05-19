@@ -39,9 +39,9 @@
       <a href="/profile" class="<%= locals.currentPath === '/profile' ? 'active' : '' %>">
         <i class="fas fa-user"></i> Profile
       </a>
-      <a href="/logout">
-        <i class="fas fa-sign-out-alt"></i> Logout
-      </a>
+      <div class="sidebar-links">
+        <a href="/logout" class="logout-link"><i class="fas fa-sign-out-alt"></i> Logout</a>
+      </div>
     <% } else { %>
       <a href="/login">
         <i class="fas fa-sign-in-alt"></i> Login
@@ -53,8 +53,25 @@
   </div>
   <% if (user) { %>
     <div class="user-info">
-      <div class="user-name"><%= user.username %></div>
-      <div class="user-status">🟢 Online</div>
+      <div class="sidebar-user-details">
+        <% if (user && (user.photoURL || user.avatar)) { %>
+          <img src="<%= user.photoURL || user.avatar %>" alt="User Avatar" class="sidebar-avatar">
+        <% } else { %>
+          <div class="sidebar-avatar user-initials">
+            <%= user.displayName ? user.displayName.split(' ').map(name => name[0]).join('') : (user.email ? user.email.charAt(0).toUpperCase() : 'U') %>
+          </div>
+        <% } %>
+        <div class="user-details-text">
+          <span class="user-name"><%= user.displayName %></span>
+          <span class="user-email"><%= user.email %></span>
+        </div>
+        <a href="/profile" class="sidebar-settings-icon" title="Settings">
+          <i class="fas fa-cog"></i>
+        </a>
+      </div>
+      <div class="sidebar-links">
+        <a href="/logout" class="logout-link"><i class="fas fa-sign-out-alt"></i> Logout</a>
+      </div>
     </div>
   <% } %>
   <div class="sidebar-footer">

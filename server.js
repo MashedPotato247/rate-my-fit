@@ -1,4 +1,4 @@
-require('dotenv').config();
+const config = require('./config');
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
@@ -9,33 +9,86 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const GitHubStrategy = require('passport-github2').Strategy;
 const firebaseAdmin = require('firebase-admin');
+const logger = require('./utils/logger');
+const { ensureUserAvatar } = require('./utils/user-photo-helpers');
+
+const helmet = require('helmet');
+const csrf = require('csurf');
+const { body, validationResult } = require('express-validator');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = config.PORT;
 
-firebaseAdmin.initializeApp({
-  credential: firebaseAdmin.credential.applicationDefault(),
-  databaseURL: process.env.FIREBASE_DATABASE_URL
-});
+try {
+  const serviceAccount = require('./rate-my-fit-bf625-firebase-adminsdk-fbsvc-393c53b96f.json');
+  
+  firebaseAdmin.initializeApp({
+    credential: firebaseAdmin.credential.cert(serviceAccount),
+    databaseURL: config.FIREBASE_DATABASE_URL || undefined
+  });
+  logger.info('Firebase Admin SDK initialized successfully');
+} catch (error) {
+  logger.error('Error initializing Firebase Admin SDK:', error);
+}
 
 const dataDir = path.join(__dirname, 'data');
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir);
 }
 
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'a3f8c9e7d6b5a4f3c2e1d0f9b8a7c6d5e4f3a2b1c0d9e8', 
-  resave: false,
-  saveUninitialized: true,
-  cookie: { secure: process.env.NODE_ENV === 'production' }
-}));
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+  })
+);
 
+const sessionConfig = {
+  secret: config.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: { 
+    secure: config.IS_PRODUCTION,
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000,
+    sameSite: 'lax'
+  }
+};
+
+if (config.IS_PRODUCTION) {
+  app.set('trust proxy', 1);
+}
+
+app.use(session(sessionConfig));
 app.use(passport.initialize());
 app.use(passport.session());
 
+const csrfProtection = csrf({ cookie: false });
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: 'Too many requests from this IP, please try again later'
+});
+
+const authLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  message: 'Too many login attempts from this IP, please try again after an hour'
+});
+
+app.use('/api/', apiLimiter);
+app.use('/auth/', authLimiter);
+app.use('/login', authLimiter);
+
 app.use((req, res, next) => {
   res.locals.user = req.session.user || req.user || null;
-  res.locals.currentPath = req.path; // Add current path to all routes
+  res.locals.currentPath = req.path;
+  
+  if (process.env.NODE_ENV !== 'production') {
+    logger.debug(`${req.method} ${req.path}`);
+  }
+  
   next();
 });
 
@@ -57,7 +110,7 @@ passport.deserializeUser(async (identifier, done) => {
     if (!userSnapshot.empty) {
       const userDoc = userSnapshot.docs[0];
       const userData = userDoc.data();
-      userData.id = userDoc.id; // Add the document ID to the user object
+      userData.id = userDoc.id;
       done(null, userData);
     } else {
       done(new Error('User not found'), null);
@@ -68,25 +121,61 @@ passport.deserializeUser(async (identifier, done) => {
 });
 
 passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: '/auth/google/callback'
+    clientID: config.GOOGLE_CLIENT_ID,
+    clientSecret: config.GOOGLE_CLIENT_SECRET,
+    callbackURL: '/auth/google/callback',
+    scope: ['profile', 'email']
   },
   async (accessToken, refreshToken, profile, done) => {
     try {
+      logger.info('Google auth profile received with ID: ' + profile.id);
+      logger.info('Google profile photos:', profile.photos ? JSON.stringify(profile.photos) : 'No photos');
+      
       const userRef = firebaseAdmin.firestore().collection('users');
       let userSnapshot = await userRef.where('googleId', '==', profile.id).get();
 
       let user;
+      let profilePhotoUrl = null;
+      
+      if (profile.photos && profile.photos.length > 0) {
+        profilePhotoUrl = profile.photos[0].value;
+        
+        if (profilePhotoUrl.includes('=s')) {
+          profilePhotoUrl = profilePhotoUrl.replace(/=s\d+(-c)?/, '=s400-c');
+        }
+        
+        logger.info(`Using Google profile photo: ${profilePhotoUrl}`);
+      } else {
+        logger.warn(`No profile photo available for Google user: ${profile.id}`);
+        profilePhotoUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.displayName || 'G')}&background=FF4D4D&color=fff&size=200`;
+      }
+      
       if (!userSnapshot.empty) {
-        user = userSnapshot.docs[0].data();
+        const userDoc = userSnapshot.docs[0];
+        user = userDoc.data();
+        
+        if (profilePhotoUrl) {
+          logger.info(`Updating photo for user ${profile.id} with URL: ${profilePhotoUrl}`);
+          await userRef.doc(userDoc.id).update({
+            photoURL: profilePhotoUrl,
+            avatar: profilePhotoUrl
+          });
+          user.photoURL = profilePhotoUrl;
+          user.avatar = profilePhotoUrl;
+        }
       } else {
         userSnapshot = await userRef.where('email', '==', profile.emails[0].value).get();
         if (!userSnapshot.empty) {
-          user = userSnapshot.docs[0].data();
-          await userRef.doc(userSnapshot.docs[0].id).update({
-            googleId: profile.id
+          const userDoc = userSnapshot.docs[0];
+          user = userDoc.data();
+          await userRef.doc(userDoc.id).update({
+            googleId: profile.id,
+            photoURL: profilePhotoUrl || user.photoURL,
+            avatar: profilePhotoUrl || user.avatar
           });
+          user.googleId = profile.id;
+          user.photoURL = profilePhotoUrl || user.photoURL;
+          user.avatar = profilePhotoUrl || user.avatar;
         } else {
           const baseUsername = profile.emails[0].value.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
           const username = baseUsername + Math.floor(1000 + Math.random() * 9000);
@@ -97,8 +186,8 @@ passport.use(new GoogleStrategy({
             name: profile.displayName,
             displayName: profile.displayName,
             username: username,
-            avatar: profile.photos[0]?.value || null,
-            photoURL: profile.photos[0]?.value || null, 
+            avatar: profilePhotoUrl,
+            photoURL: profilePhotoUrl,
             createdAt: Date.now(),
             isNewUser: true
           };
@@ -115,13 +204,12 @@ passport.use(new GoogleStrategy({
 ));
 
 passport.use(new GitHubStrategy({
-    clientID: process.env.GITHUB_CLIENT_ID,
-    clientSecret: process.env.GITHUB_CLIENT_SECRET,
+    clientID: config.GITHUB_CLIENT_ID,
+    clientSecret: config.GITHUB_CLIENT_SECRET,
     callbackURL: '/auth/github/callback'
   },
   async (accessToken, refreshToken, profile, done) => {
     try {
-      // Fallback for email if profile.emails is undefined or empty
       const email = (profile.emails && profile.emails.length > 0) ? profile.emails[0].value : null;
 
       const userRef = firebaseAdmin.firestore().collection('users');
@@ -141,7 +229,7 @@ passport.use(new GitHubStrategy({
           user = {
             githubId: profile.id,
             username: profile.username || `user_${Date.now()}`,
-            email: email, // Use fallback email
+            email: email,
             displayName: profile.displayName || profile.username,
             photoURL: profile.photos && profile.photos[0] ? profile.photos[0].value : null,
             createdAt: new Date().toISOString(),
@@ -186,39 +274,30 @@ const upload = multer({
   }
 }).single('fitImage');
 
-// Set static folder
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Set view engine
 app.set('view engine', 'ejs');
 
-// Body parser
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// Auth check
 function checkAuth(req, res, next) {
   if (!req.session.user && !req.isAuthenticated()) {
-    // Not logged in, redirect to login page
     return res.redirect('/login');
   }
   
-  // Sync passport user with session if needed
   if (req.isAuthenticated() && !req.session.user) {
     req.session.user = req.user;
   }
   
-  // Check if profile completion is required
   let currentUser = req.session.user || req.user;
   if (currentUser && currentUser.isNewUser) {
     return res.redirect('/complete-profile');
   }
   
-  // User is authenticated and profile is complete
   next();
 }
 
-// Update the home route to redirect to /dashboard
 app.get('/', function(req, res) {
   res.redirect('/dashboard');
 });
@@ -229,26 +308,81 @@ app.get('/login', function(req, res) {
   res.render('login', { message, error });
 });
 
-app.get('/dashboard', checkAuth, async (req, res) => {
+app.get('/update-my-avatar', checkAuth, async (req, res) => {
+  const avatarUrl = req.query.url;
+  const user = req.session.user || req.user;
+  
+  if (!user || !user.email) {
+    return res.status(401).json({ error: 'Not logged in' });
+  }
+  
+  if (!avatarUrl) {
+    return res.status(400).json({ error: 'No URL provided' });
+  }
+  
+  try {
+    const userRef = firebaseAdmin.firestore().collection('users');
+    const userQuery = await userRef.where('email', '==', user.email).get();
+    
+    if (userQuery.empty) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const userDoc = userQuery.docs[0];
+    await userRef.doc(userDoc.id).update({
+      photoURL: avatarUrl,
+      avatar: avatarUrl
+    });
+    
+    user.photoURL = avatarUrl;
+    user.avatar = avatarUrl;
+    
+    if (req.session.user) {
+      req.session.user = user;
+    }
+    
+    return res.redirect('/dashboard?msg=Avatar+updated+successfully');
+  } catch (error) {
+    logger.error('Error updating avatar:', error);
+    return res.redirect('/dashboard?error=Error+updating+avatar');
+  }
+});
+
+app.get('/dashboard', csrfProtection, checkAuth, async (req, res) => {
   const userId = req.session?.user?.uid || "guest";
   const user = req.session.user || req.user;
   
   try {
-    console.log('Dashboard - User:', user ? user.email : 'User not available');
+    logger.debug('Dashboard - User:', user ? user.email : 'User not available');
+    if (user) {
+      logger.debug('User photo data - photoURL:', user.photoURL);
+      logger.debug('User photo data - avatar:', user.avatar);
+      
+      const userCopy = {...user};
+      if (userCopy.photoURL) {
+        logger.debug('User has photoURL field set to:', userCopy.photoURL);
+      }
+      if (userCopy.avatar) {
+        logger.debug('User has avatar field set to:', userCopy.avatar);
+      }
+      if (!userCopy.photoURL && !userCopy.avatar) {
+        logger.warn('User has no profile picture URLs set');
+      }
+    }
     
     if (!user || !user.email) {
-      console.error('Dashboard - No valid user email available');
+      logger.error('Dashboard - No valid user email available');
       return res.render('dashboard', {
         user, 
         uploads: [],
         totalUploads: 0,
         totalFireVotes: 0,
         profileViews: 0,
-        error: 'Invalid user session. Please log in again.'
+        error: 'Invalid user session. Please log in again.',
+        csrfToken: req.csrfToken()
       });
     }
     
-    // First, find the user document to get the correct Firestore ID
     const userCollection = firebaseAdmin.firestore().collection('users');
     console.log('Dashboard - Querying for user with email:', user.email);
     const userQuery = await userCollection.where('email', '==', user.email).get();
@@ -261,18 +395,28 @@ app.get('/dashboard', checkAuth, async (req, res) => {
         totalUploads: 0,
         totalFireVotes: 0,
         profileViews: 0,
-        error: 'Could not find your account. Please try logging in again.'
+        error: 'Could not find your account. Please try logging in again.',
+        csrfToken: req.csrfToken()
       });
     }
     
-    // Get the user document ID from Firestore
     const userId = userQuery.docs[0].id;
     console.log('Found user ID for dashboard:', userId);
     
-    // Get user's uploads
+    const userData = userQuery.docs[0].data();
+    
+    if (userData.photoURL || userData.avatar) {
+      user.photoURL = userData.photoURL || userData.avatar;
+      user.avatar = userData.avatar || userData.photoURL;
+      req.session.user = {
+        ...req.session.user, 
+        photoURL: userData.photoURL || userData.avatar,
+        avatar: userData.avatar || userData.photoURL
+      };
+    }
+    
     console.log('Querying uploads for user ID:', userId);
     
-    // Debug: Check what outfits exist in the collection
     const allOutfitsQuery = await firebaseAdmin.firestore()
       .collection('outfits')
       .get();
@@ -289,21 +433,19 @@ app.get('/dashboard', checkAuth, async (req, res) => {
         .orderBy('uploadedAt', 'desc')
         .get();
       
-      console.log('Upload query returned:', uploadsQuery.size, 'documents');
+      logger.debug('Upload query returned:', uploadsQuery.size, 'documents');
       
       const uploads = uploadsQuery.docs.map(doc => {
         const data = doc.data();
-        console.log('Outfit data:', { id: doc.id, userId: data.userId, imageUrl: data.imageUrl });
+        logger.debug('Outfit data:', { id: doc.id, userId: data.userId, imageUrl: data.imageUrl });
         return {
           id: doc.id,
           ...data
         };
       });
       
-      // Calculate total fire votes received
       const totalFireVotes = uploads.reduce((total, outfit) => total + (outfit.fireVotes || 0), 0);
     
-      // Get message from query params if exists
       const msg = req.query.msg || null;
       
       res.render('dashboard', { 
@@ -311,29 +453,29 @@ app.get('/dashboard', checkAuth, async (req, res) => {
         uploads,
         totalUploads: uploads.length,
         totalFireVotes,
-        profileViews: 0, // For future implementation
-        msg
+        profileViews: 0,
+        msg,
+        csrfToken: req.csrfToken()
       });
     } catch (error) {
-      console.error('Error in inner try block:', error);
-      throw error; // Throw to outer catch block
+      logger.error('Error in inner try block:', error);
+      throw error;
     }
   } catch (error) {
-    console.error('Error fetching dashboard data:', error);
-    console.error('Error details:', error.message);
-    console.error('Error stack:', error.stack);
+    logger.error('Error fetching dashboard data:', error);
+    logger.error('Error details:', error.message);
+    logger.error('Error stack:', error.stack);
     
-    // Make sure we still have userId from the outer scope
     if (!userId && user && user.email) {
       try {
-        console.log('Trying to recover userId in catch block for:', user.email);
+        logger.debug('Trying to recover userId in catch block for:', user.email);
         const userQueryInCatch = await firebaseAdmin.firestore().collection('users').where('email', '==', user.email).get();
         if (!userQueryInCatch.empty) {
           userId = userQueryInCatch.docs[0].id;
-          console.log('Recovered userId in catch block:', userId);
+          logger.debug('Recovered userId in catch block:', userId);
         }
       } catch (err) {
-        console.error('Failed to recover userId in catch block:', err);
+        logger.error('Failed to recover userId in catch block:', err);
       }
     }
     
@@ -344,18 +486,18 @@ app.get('/dashboard', checkAuth, async (req, res) => {
         totalUploads: 0,
         totalFireVotes: 0,
         profileViews: 0,
-        error: 'Could not identify your user account'
+        error: 'Could not identify your user account',
+        csrfToken: req.csrfToken()
       });
     }
     
-    // Try to get at least some uploads without the ordering
     try {
       const simpleQuery = await firebaseAdmin.firestore()
         .collection('outfits')
         .where('userId', '==', userId)
         .get();
       
-      console.log('Simple query returned:', simpleQuery.size, 'documents');
+      logger.debug('Simple query returned:', simpleQuery.size, 'documents');
       
       if (simpleQuery.size > 0) {
         const uploads = simpleQuery.docs.map(doc => ({
@@ -371,11 +513,12 @@ app.get('/dashboard', checkAuth, async (req, res) => {
           totalUploads: uploads.length,
           totalFireVotes,
           profileViews: 0,
-          msg: 'Some data loaded with limited functionality'
+          msg: 'Some data loaded with limited functionality',
+          csrfToken: req.csrfToken()
         });
       }
     } catch (fallbackError) {
-      console.error('Fallback query also failed:', fallbackError);
+      logger.error('Fallback query also failed:', fallbackError);
     }
     
     res.render('dashboard', { 
@@ -384,12 +527,13 @@ app.get('/dashboard', checkAuth, async (req, res) => {
       totalUploads: 0,
       totalFireVotes: 0,
       profileViews: 0,
-      error: 'Could not load dashboard data'
+      error: 'Could not load dashboard data',
+      csrfToken: req.csrfToken()
     });
   }
 });
 
-app.get('/profile', checkAuth, async (req, res) => {
+app.get('/profile', csrfProtection, checkAuth, async (req, res) => {
   const sessionUser = req.session.user || req.user;
   
   try {
@@ -399,7 +543,8 @@ app.get('/profile', checkAuth, async (req, res) => {
     if (userQuery.empty) {
       return res.render('profile', { 
         user: sessionUser,
-        error: 'User not found in database'
+        error: 'User not found in database',
+        csrfToken: req.csrfToken()
       });
     }
     
@@ -414,92 +559,119 @@ app.get('/profile', checkAuth, async (req, res) => {
       username: userData.username || userData.email.split('@')[0],
     };
     
-    res.render('profile', { user });
+    res.render('profile', { user, csrfToken: req.csrfToken() });
   } catch (error) {
-    console.error('Error fetching profile:', error);
+    logger.error('Error fetching profile:', error);
     res.render('profile', { 
       user: sessionUser,
-      error: 'Could not load profile data. Please try again.'
+      error: 'Could not load profile data. Please try again.',
+      csrfToken: req.csrfToken()
     });
   }
 });
 
-app.post('/profile', checkAuth, async (req, res) => {
+app.post('/profile', csrfProtection, checkAuth, [
+  body('username')
+    .trim()
+    .isLength({ min: 3, max: 20 })
+    .withMessage('Username must be between 3 and 20 characters')
+    .isAlphanumeric('en-US', { ignore: '_' })
+    .withMessage('Username can only contain letters, numbers, and underscores')
+    .escape(),
+  body('displayName')
+    .trim()
+    .isLength({ min: 1, max: 30 })
+    .withMessage('Display name is required')
+    .escape(),
+  body('bio')
+    .trim()
+    .optional()
+    .isLength({ max: 500 })
+    .withMessage('Bio must be less than 500 characters')
+    .escape()
+], async (req, res) => {
   const { displayName, bio, username } = req.body;
   const user = req.session.user || req.user;
   
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.render('profile', { 
+      user: user,
+      error: errors.array()[0].msg,
+      csrfToken: req.csrfToken()
+    });
+  }
+  
   try {
-    // Make sure we have a valid user ID
     if (!user || !user.email) {
       return res.render('profile', { 
         user: user,
-        error: 'Invalid user session. Please log in again.'
+        error: 'Invalid user session. Please log in again.',
+        csrfToken: req.csrfToken()
       });
     }
     
-    // First, find user by email
     const userCollection = firebaseAdmin.firestore().collection('users');
     const userQuery = await userCollection.where('email', '==', user.email).get();
     
     if (userQuery.empty) {
       return res.render('profile', { 
         user: user,
-        error: 'User not found'
+        error: 'User not found',
+        csrfToken: req.csrfToken()
       });
     }
     
-    // Get the first document (should be only one with this email)
     const userDoc = userQuery.docs[0];
     const userId = userDoc.id;
     
-    // Make sure we have a valid document ID
     if (!userId) {
       return res.render('profile', {
         user: user,
-        error: 'Invalid user document. Please try logging in again.'
+        error: 'Invalid user document. Please try logging in again.',
+        csrfToken: req.csrfToken()
       });
     }
     
     const userRef = userCollection.doc(userId);
     
-    // Check if username is taken by another user
     if (username && username !== user.username) {
       const usernameQuery = await userCollection.where('username', '==', username).get();
       if (!usernameQuery.empty && usernameQuery.docs[0].id !== userId) {
         return res.render('profile', {
           user: user,
-          error: 'Username already taken'
+          error: 'Username already taken',
+          csrfToken: req.csrfToken()
         });
       }
     }
     
-    // Update user data
     const updateData = { displayName, bio };
     if (username) updateData.username = username;
     
     await userRef.update(updateData);
     
-    // Update session
     if (req.session.user) {
       req.session.user.displayName = displayName;
       req.session.user.bio = bio;
       if (username) req.session.user.username = username;
     }
     
-    // Get updated user data to render the page
     const updatedUserDoc = await userRef.get();
     const updatedUser = { id: userId, ...updatedUserDoc.data() };
     
     res.render('profile', { 
       user: updatedUser,
-      message: 'Profile updated successfully!'
+      message: 'Profile updated successfully!',
+      csrfToken: req.csrfToken()
     });
     
   } catch (error) {
     console.error('Profile update error:', error);
     res.render('profile', { 
       user: req.session.user,
-      error: 'Something went wrong. Please try again.'
+      error: 'Something went wrong. Please try again.',
+      csrfToken: req.csrfToken()
     });
   }
 });
@@ -514,17 +686,14 @@ app.get('/logout', (req, res) => {
     });
   });
 });
-app.post('/upload', checkAuth, upload, async (req, res) => {
-  // Quick check if file exists
+app.post('/upload', csrfProtection, checkAuth, upload, async (req, res) => {
   if (!req.file) {
     return res.render('index', { msg: 'No file uploaded!', file: null });
   }
   
   try {
-    // Get current user
     var user = req.session.user || req.user;
     
-    // Find the user in Firebase
     var userCollection = firebaseAdmin.firestore().collection('users');
     var userQuery = await userCollection.where('email', '==', user.email).get();
     
@@ -539,7 +708,6 @@ app.post('/upload', checkAuth, upload, async (req, res) => {
     var userDocId = userQuery.docs[0].id;
     console.log('Found user ID for upload:', userDocId);
     
-    // Prepare outfit data for Firebase
     var outfitData = {
       userId: userDocId,
       username: user.username || user.email.split('@')[0],
@@ -553,7 +721,6 @@ app.post('/upload', checkAuth, upload, async (req, res) => {
     
     await firebaseAdmin.firestore().collection('outfits').add(outfitData);
     
-    // Redirect to the dashboard instead of just rendering
     res.redirect('/dashboard?msg=File+uploaded+successfully!');
   } catch (error) {
     console.error('Upload error:', error);
@@ -564,23 +731,66 @@ app.post('/upload', checkAuth, upload, async (req, res) => {
   }
 });
 
-// Social Login Routes
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
 app.get('/auth/google/callback', 
   passport.authenticate('google', { failureRedirect: '/login?error=Google+authentication+failed' }),
-  function(req, res) {
-    // If this is a new user, redirect to profile setup
+  async function(req, res) {
     if (req.user.isNewUser) {
       return res.redirect('/complete-profile');
     }
-    // Regular login, set session and redirect to dashboard
-    req.session.user = req.user;
-    res.redirect('/dashboard');
+    
+    try {
+      const userRef = firebaseAdmin.firestore().collection('users');
+      
+      let userSnapshot = await userRef.where('googleId', '==', req.user.googleId).get();
+      
+      if (userSnapshot.empty && req.user.email) {
+        userSnapshot = await userRef.where('email', '==', req.user.email).get();
+      }
+      
+      if (!userSnapshot.empty) {
+        const userDoc = userSnapshot.docs[0];
+        const userData = userDoc.data();
+        
+        const sessionUser = {
+          ...req.user,
+          ...userData,
+          photoURL: userData.photoURL || userData.avatar || req.user.photoURL || req.user.avatar,
+          avatar: userData.avatar || userData.photoURL || req.user.avatar || req.user.photoURL,
+        };
+        
+        console.log('Storing user in session with photo data:', {
+          id: userDoc.id,
+          photoURL: sessionUser.photoURL,
+          avatar: sessionUser.avatar
+        });
+        
+        req.session.user = sessionUser;
+      } else {
+        console.error('User not found in Firestore during Google callback');
+        req.session.user = {
+          ...req.user,
+          photoURL: req.user.photoURL || req.user.avatar,
+          avatar: req.user.avatar || req.user.photoURL
+        };
+      }
+      
+      res.redirect('/dashboard');
+    } catch (error) {
+      console.error('Error in Google auth callback:', error);
+      
+      req.session.user = {
+        ...req.user,
+        photoURL: req.user.photoURL || req.user.avatar,
+        avatar: req.user.avatar || req.user.photoURL
+      };
+      
+      res.redirect('/dashboard');
+    }
   }
 );
 
-// GitHub Login Route
 app.get('/auth/github', passport.authenticate('github', { scope: ['user:email'] }));
 
 app.get('/auth/github/callback', 
@@ -589,32 +799,57 @@ app.get('/auth/github/callback',
     if (req.user.isNewUser) {
       return res.redirect('/complete-profile');
     }
-    req.session.user = req.user;
+    
+    const sessionUser = {
+      ...req.user,
+      photoURL: req.user.photoURL || req.user.avatar,
+      avatar: req.user.avatar || req.user.photoURL
+    };
+    
+    req.session.user = sessionUser;
     res.redirect('/dashboard');
   }
 );
 
-// Complete profile page for new social login users
-app.get('/complete-profile', (req, res) => {
-  // Only allow access if user is authenticated via Passport
+app.get('/complete-profile', csrfProtection, (req, res) => {
   if (!req.isAuthenticated()) {
     return res.redirect('/login');
   }
   res.render('complete-profile', { user: req.user });
 });
 
-app.post('/complete-profile', async (req, res) => {
-  // Only allow access if user is authenticated via Passport
+app.post('/complete-profile', csrfProtection, [
+  body('username')
+    .trim()
+    .isLength({ min: 3, max: 20 })
+    .withMessage('Username must be between 3 and 20 characters')
+    .isAlphanumeric('en-US', { ignore: '_' })
+    .withMessage('Username can only contain letters, numbers, and underscores')
+    .escape(),
+  body('displayName')
+    .trim()
+    .isLength({ min: 1, max: 30 })
+    .withMessage('Display name is required')
+    .escape()
+], async (req, res) => {
   if (!req.isAuthenticated()) {
     return res.redirect('/login');
   }
 
   const { username, displayName } = req.body;
 
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.render('complete-profile', { 
+      user: req.user, 
+      error: errors.array()[0].msg,
+      csrfToken: req.csrfToken()
+    });
+  }
+
   try {
     const userRef = firebaseAdmin.firestore().collection('users');
 
-    // Check if req.user.id exists
     if (!req.user.id) {
       console.error('User ID is missing in the request.');
       return res.render('complete-profile', {
@@ -642,14 +877,12 @@ app.post('/complete-profile', async (req, res) => {
       });
     }
 
-    // Update username, displayName and remove isNewUser flag
     await userDocRef.update({
       username,
       displayName: displayName || username,
       isNewUser: false
     });
 
-    // Update session and passport user
     req.user.username = username;
     req.user.displayName = displayName || username;
     req.user.isNewUser = false;
@@ -665,19 +898,15 @@ app.post('/complete-profile', async (req, res) => {
   }
 });
 
-// Trending Route
-app.get('/trending', async (req, res) => {
+app.get('/trending', csrfProtection, async (req, res) => {
   try {
-    // Get message and error from query params
     const { msg, error } = req.query;
     
-    // Get all outfits for trending page
     const outfitsSnapshot = await firebaseAdmin.firestore().collection('outfits').orderBy('fireVotes', 'desc').limit(10).get();
     const outfits = outfitsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     
     console.log(`Found ${outfits.length} outfits for trending page`);
     
-    // Get current user's Firestore ID if logged in
     let userId = null;
     if (req.session.user || req.isAuthenticated()) {
       const user = req.session.user || req.user;
@@ -698,7 +927,8 @@ app.get('/trending', async (req, res) => {
       userId,
       msg,
       error,
-      currentPath: '/trending'
+      currentPath: '/trending',
+      csrfToken: req.csrfToken()
     });
   } catch (error) {
     console.error('Error fetching trending outfits:', error);
@@ -706,18 +936,31 @@ app.get('/trending', async (req, res) => {
   }
 });
 
-// Vote route
-app.post('/vote', checkAuth, async (req, res) => {
+app.post('/vote', csrfProtection, checkAuth, [
+  body('outfitId')
+    .trim()
+    .notEmpty()
+    .withMessage('Outfit ID is required')
+    .escape(),
+  body('voteType')
+    .trim()
+    .isIn(['fire', 'nope'])
+    .withMessage('Invalid vote type')
+    .escape()
+], async (req, res) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.redirect('/trending?error=Invalid+vote+data');
+    }
+    
     const { outfitId, voteType } = req.body;
     const user = req.session.user || req.user;
     
-    // Validate required fields
     if (!outfitId || !voteType || !user) {
       return res.redirect('/trending?error=Invalid+vote+data');
     }
     
-    // Get the outfit document
     const outfitRef = firebaseAdmin.firestore().collection('outfits').doc(outfitId);
     const outfitDoc = await outfitRef.get();
     
@@ -743,3 +986,12 @@ app.post('/vote', checkAuth, async (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
+
+app.use((req, res, next) => {
+  res.status(404).render('404');
+});
+
+app.use((err, req, res, next) => {
+  console.error('Global error handler caught:', err);
+  res.status(500).render('500');
+});

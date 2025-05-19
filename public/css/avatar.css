@@ -1,0 +1,32 @@
+/* Avatar fallback styles */
+.user-initials-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #ff4d4d, #f9cb28);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  font-weight: bold;
+  font-size: 24px;
+}
+
+/* Fix for profile pictures */
+.avatar-image {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* Remove any debug labels or overlays */
+.user-avatar::before,
+.user-avatar::after,
+.sidebar-avatar::before,
+.sidebar-avatar::after,
+.avatar-image::before,
+.avatar-image::after {
+  display: none !important;
+  content: none !important;
+}

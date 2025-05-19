@@ -167,6 +167,7 @@
         </div>
         
         <form action="/complete-profile" method="POST" class="complete-profile-form">
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
           <input type="text" name="username" placeholder="USERNAME (NO SPACES)" required 
                  pattern="^[a-zA-Z0-9_]+$" minlength="3" maxlength="20">
           <div class="input-info">3-20 characters, only letters, numbers, and underscores</div>

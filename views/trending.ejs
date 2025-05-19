@@ -38,9 +38,9 @@
         <a href="/profile" class="<%= locals.currentPath === '/profile' ? 'active' : '' %>">
           <i class="fas fa-user"></i> Profile
         </a>
-        <a href="/logout">
-          <i class="fas fa-sign-out-alt"></i> Logout
-        </a>
+        <div class="sidebar-links">
+          <a href="/logout" class="logout-link"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        </div>
       <% } else { %>
         <a href="/login">
           <i class="fas fa-sign-in-alt"></i> Login
@@ -50,13 +50,23 @@
         </a>
       <% } %>
     </div>
-    <% if (user) { %>
-      <div class="user-info">
-        <div class="user-name"><%= user.username %></div>
-        <div class="user-status">🟢 Online</div>
-      </div>
-    <% } %>
     <div class="sidebar-footer">
+      <% if (user) { %>
+        <div class="user-info">
+          <a href="/profile" class="sidebar-user-details">
+            <div class="sidebar-avatar" id="sidebar-avatar-placeholder-trending">
+              AV
+            </div>
+            <div class="user-details-text">
+              <p class="user-name" id="sidebar-user-name-trending">User Name</p>
+              <p class="user-email" id="sidebar-user-email-trending">user@example.com</p>
+            </div>
+          </a>
+          <a href="/profile/settings" class="sidebar-settings-icon" aria-label="Settings">
+            <i class="fas fa-cog"></i>
+          </a>
+        </div>
+      <% } %>
       Made with ❤️ by Anush
     </div>
   </div>
@@ -84,6 +94,7 @@
               </span>
             </div>
             <form action="/vote" method="POST" class="vote-buttons">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>">
               <input type="hidden" name="outfitId" value="<%= outfit.id %>">
               <input type="hidden" name="userId" value="<%= userId %>">
               <button type="submit" name="voteType" value="fire" class="fire-btn">

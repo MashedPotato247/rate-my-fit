@@ -1,0 +1,22 @@
+User-agent: *
+Disallow: /profile
+Disallow: /dashboard
+Disallow: /complete-profile
+Disallow: /login
+Disallow: /uploads/
+Allow: /trending
+Allow: /
+Allow: /css/
+Allow: /js/
+
+# Block AI assistants from private content
+User-agent: GPTBot
+Disallow: /profile
+Disallow: /dashboard
+Disallow: /complete-profile
+
+# Block Google Bard bot from private content
+User-agent: Google-Extended
+Disallow: /profile
+Disallow: /dashboard
+Disallow: /complete-profile

@@ -4,6 +4,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Edit Profile | Rate My Fit</title>
   <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/sidebar.css">
+  <link rel="stylesheet" href="/css/avatar.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     .profile-container {
@@ -116,16 +118,71 @@
 </head>
 <body>
   <!-- Navigation Bar -->
+  <!-- Top Navigation Bar -->
   <div class="navbar">
-    <a href="/" class="logo">🔥 RateMyFit</a>
-    <div class="nav-links">
-      <a href="/">Home</a>
-      <a href="/trending">Trending</a>
-      <a href="/dashboard">Dashboard</a>
-      <a href="/profile" class="active">Profile</a>
-      <a href="/logout">Logout</a>
+    <div class="nav-left">
+      <a href="/" class="logo">🔥 RateMyFit</a>
+    </div>
+    <div class="nav-right">
+      <button class="menu-btn" id="sidebar-toggle">
+        <i class="fas fa-bars"></i>
+      </button>
     </div>
   </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h2><i class="fas fa-bars"></i> Menu</h2>
+    </div>
+    <div class="sidebar-links">
+      <a href="/dashboard" class="<%= currentPath === '/dashboard' ? 'active' : '' %>"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+      <a href="/" class="<%= currentPath === '/' ? 'active' : '' %>"><i class="fas fa-home"></i> Home</a>
+      <a href="/trending" class="<%= currentPath === '/trending' ? 'active' : '' %>"><i class="fas fa-fire"></i> Trending</a>
+      <a href="/profile" class="<%= currentPath === '/profile' ? 'active' : '' %>"><i class="fas fa-user"></i> Profile</a>
+    </div>
+    <% if (user) { %>
+    <div class="sidebar-footer">
+        <div class="user-info">
+            <a href="/profile" class="sidebar-user-details">
+                <div class="sidebar-avatar">
+                    <% if (user.photoURL && user.photoURL !== 'NO_AVATAR_SET') { %>
+                        <img src="<%= user.photoURL %>" alt="<%= user.displayName || user.email %>" class="avatar-image">
+                    <% } else { %>
+                        <div class="user-initials-avatar">
+                            <%= (user.displayName || user.email || 'U').charAt(0).toUpperCase() %>
+                        </div>
+                    <% } %>
+                </div>
+                <div class="user-details-text">
+                    <span class="user-name"><%= user.displayName || (user.email ? user.email.split('@')[0] : 'User') %></span>
+                    <% if (user.displayName && user.email) { %>
+                        <span class="user-email"><%= user.email %></span>
+                    <% } %>
+                </div>
+            </a>
+            <a href="/profile/settings" class="sidebar-settings-icon" aria-label="Settings">
+              <i class="fas fa-cog"></i>
+            </a>
+        </div>
+        <div class="sidebar-links">
+            <a href="/logout" class="logout-link">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </a>
+        </div>
+    </div>
+    <% } else { %>
+    <div class="sidebar-footer">
+        <div class="sidebar-links">
+            <a href="/login"><i class="fas fa-sign-in-alt"></i> Login</a>
+            <a href="/register"><i class="fas fa-user-plus"></i> Register</a>
+        </div>
+    </div>
+    <% } %>
+  </div>
+
+  <!-- Overlay -->
+  <div class="overlay" id="overlay"></div>
 
   <div class="container">
     <h1>Edit Profile</h1>
@@ -145,7 +202,12 @@
       
       <div class="profile-header">
         <div class="profile-avatar">
-          <img src="<%= user.avatar || user.photoURL || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(user.name || user.username) + '&background=FF4D4D&color=fff&size=200' %>" alt="Avatar">
+          <% 
+            const displayName = user.displayName || user.username || 'User';
+            const avatarUrl = (user.photoURL || user.avatar) || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(displayName) + '&background=FF4D4D&color=fff&size=200';
+            const fallbackUrl = 'https://ui-avatars.com/api/?name=' + encodeURIComponent(displayName) + '&background=FF4D4D&color=fff&size=200';
+          %>
+          <img src="<%= avatarUrl %>" alt="Avatar" onerror="this.onerror=null; this.src='<%= fallbackUrl %>'">
         </div>
         <div>
           <div class="profile-username"><%= user.displayName %></div>
@@ -157,6 +219,7 @@
       </div>
       
       <form action="/profile" method="POST" class="profile-form">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>">
         <div class="form-group">
           <label for="username">Username</label>
           <input type="text" id="username" name="username" value="<%= user.username %>" required pattern="[a-zA-Z0-9_]+" title="Username can only contain letters, numbers, and underscores">
@@ -181,5 +244,6 @@
   <footer>
     Made with ❤️ by Anush. Let's make it to America! 🇺🇸
   </footer>
+  <script src="/js/navbar.js"></script>
 </body>
 </html>
